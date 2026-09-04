@@ -4891,3 +4891,28 @@ ol {
     padding-top: 88px;
   }
 }
+.login-register-section {
+  text-align: center;
+  margin-top: 18px;
+}
+
+.login-register-section p {
+  margin: 0 0 6px;
+  color: #7f8b95;
+  font-size: 11px;
+}
+
+.register-yourself-btn {
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.register-yourself-btn:hover {
+  text-decoration: underline;
+  color: #0b625b;
+}

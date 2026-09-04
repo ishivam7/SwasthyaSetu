@@ -5,7 +5,9 @@ import RoleSelection from "./pages/Roleselection";
 import Login from "./pages/Login";
 import PatientDashboard from "./pages/patient/PatientDashboard.jsx";
 import DoctorDashboard from "./pages/doctor/DoctorDashboard.jsx";
-
+import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
+import WorkerDashboard from "./pages/worker/WorkerDashboard.jsx";
+import Registration from "./pages/Registration.jsx";
 function App() {
   return (
     <BrowserRouter>
@@ -39,6 +41,18 @@ function App() {
           path="/doctor-dashboard"
           element={<DoctorDashboard />}
         />
+        <Route
+          path="/admin-dashboard"
+          element={<AdminDashboard />}
+        />
+        <Route
+  path="/worker-dashboard"
+  element={<WorkerDashboard />}
+/>
+    <Route
+  path="/registration"
+  element={<Registration />}
+/>
       </Routes>
 
     </BrowserRouter>

@@ -34,7 +34,21 @@ function Login() {
      CURRENT ROLE
   ========================= */
 
-  const currentRole = roleNames[role] || "Healthcare User";
+  const currentRole =
+    roleNames[role] || "Healthcare User";
+
+  /* =========================
+     REGISTER FUNCTION
+  ========================= */
+
+  const handleRegister = () => {
+    if (!role) {
+      navigate("/roles");
+      return;
+    }
+
+    navigate(`/registration?role=${role}`);
+  };
 
   /* =========================
      LOGIN FUNCTION
@@ -64,17 +78,13 @@ function Login() {
 
     // HEALTH WORKER
     if (role === "health-worker") {
-      alert(
-        "Health Worker login successful! Health Worker Dashboard will be connected next."
-      );
+      navigate("/worker-dashboard");
       return;
     }
 
     // ADMIN
     if (role === "admin") {
-      alert(
-        "Administrator login successful! Admin Dashboard will be connected next."
-      );
+      navigate("/admin-dashboard");
       return;
     }
 
@@ -322,7 +332,9 @@ function Login() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) =>
-                  setRememberMe(e.target.checked)
+                  setRememberMe(
+                    e.target.checked
+                  )
                 }
               />
 
@@ -347,6 +359,26 @@ function Login() {
             </button>
 
           </form>
+
+          {/* =================================================
+              REGISTER YOURSELF
+          ================================================= */}
+
+          <div className="login-register-section">
+
+            <p>
+              Don't have an account?
+            </p>
+
+            <button
+              type="button"
+              className="register-yourself-btn"
+              onClick={handleRegister}
+            >
+              Register Yourself
+            </button>
+
+          </div>
 
           {/* DIVIDER */}
 

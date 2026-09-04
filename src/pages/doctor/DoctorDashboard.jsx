@@ -7,7 +7,8 @@ function DoctorDashboard() {
   const fileInputRef = useRef(null);
 
   const [activeMenu, setActiveMenu] = useState("Dashboard");
-  const [previousMenu, setPreviousMenu] = useState("Dashboard");
+  const [menuHistory, setMenuHistory] = useState([]);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -268,9 +269,17 @@ function DoctorDashboard() {
   };
 
   const handleMenu = (menu) => {
-    setPreviousMenu(activeMenu);
-    setActiveMenu(menu);
+    if (menu === activeMenu) {
+      setMobileMenuOpen(false);
+      return;
+    }
 
+    setMenuHistory((prev) => {
+      if (prev[prev.length - 1] === activeMenu) return prev;
+      return [...prev, activeMenu];
+    });
+
+    setActiveMenu(menu);
     setSearch("");
     setSelectedPatient(null);
     setSelectedAppointment(null);
@@ -281,6 +290,8 @@ function DoctorDashboard() {
     setNotificationOpen(false);
     setShowProfile(false);
     setShowSettings(false);
+    setEditProfile(false);
+    setMobileMenuOpen(false);
 
     window.scrollTo({
       top: 0,
@@ -289,21 +300,72 @@ function DoctorDashboard() {
   };
 
   const handleBack = () => {
-    if (activeMenu === "Settings") {
-      setActiveMenu(previousMenu || "Profile");
+    // Close nested/detail views first.
+    if (showPatientDetails) {
+      setShowPatientDetails(false);
       return;
     }
 
-    if (activeMenu !== "Dashboard") {
-      setActiveMenu("Dashboard");
+    if (selectedPatient) {
+      setSelectedPatient(null);
+      return;
+    }
+
+    if (selectedAppointment) {
+      setSelectedAppointment(null);
+      return;
+    }
+
+    if (showPrescription) {
+      setShowPrescription(false);
+      return;
+    }
+
+    if (showReferral) {
+      setShowReferral(false);
+      return;
+    }
+
+    if (consultationPatient) {
+      setConsultationPatient(null);
+      return;
+    }
+
+    if (activeMenu === "Profile" && editProfile) {
+      setEditProfile(false);
+      return;
+    }
+
+    if (menuHistory.length > 0) {
+      const history = [...menuHistory];
+      const previousPage = history.pop();
+
+      setMenuHistory(history);
+      setActiveMenu(previousPage || "Dashboard");
       setSearch("");
+      setSelectedPatient(null);
+      setSelectedAppointment(null);
+      setConsultationPatient(null);
+      setShowPrescription(false);
+      setShowReferral(false);
+      setShowPatientDetails(false);
+      setNotificationOpen(false);
+      setShowProfile(false);
+      setShowSettings(false);
+      setEditProfile(false);
+      setMobileMenuOpen(false);
 
       window.scrollTo({
         top: 0,
         behavior: "smooth",
       });
-    } else {
+      return;
+    }
+
+    if (activeMenu === "Dashboard") {
       navigate("/roles");
+    } else {
+      setActiveMenu("Dashboard");
     }
   };
 
@@ -411,8 +473,15 @@ function DoctorDashboard() {
   };
 
   const handleStartConsultation = (patient) => {
+    if (activeMenu !== "Consultations") {
+      setMenuHistory((prev) => {
+        if (prev[prev.length - 1] === activeMenu) return prev;
+        return [...prev, activeMenu];
+      });
+    }
     setConsultationPatient(patient);
     setActiveMenu("Consultations");
+    setMobileMenuOpen(false);
     showToast(`Consultation started for ${patient.name}`);
   };
 
@@ -1990,7 +2059,11 @@ function DoctorDashboard() {
 
       {/* SIDEBAR */}
 
-      <aside className="doctor-sidebar">
+      <aside
+        className={`doctor-sidebar ${
+          mobileMenuOpen ? "mobile-sidebar-open" : ""
+        }`}
+      >
 
         <div className="doctor-brand">
           <div className="doctor-brand-icon">
@@ -2095,6 +2168,13 @@ function DoctorDashboard() {
         </div>
       </aside>
 
+      {mobileMenuOpen && (
+        <div
+          className="mobile-sidebar-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+        ></div>
+      )}
+
       {/* MAIN */}
 
       <main className="doctor-main">
@@ -2102,6 +2182,17 @@ function DoctorDashboard() {
         {/* TOPBAR */}
 
         <header className="doctor-topbar">
+
+          <button
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={mobileMenuOpen}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
 
           <div className="mobile-doctor-brand">
             <div>✚</div>

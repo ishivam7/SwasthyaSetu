@@ -5136,3 +5136,616 @@ textarea:focus-visible {
     transition: none;
   }
 }
+/* =========================================================
+   MOBILE MENU
+========================================================= */
+
+.mobile-menu-toggle {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: #f1f5f9;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  z-index: 1101;
+}
+
+.mobile-menu-toggle span {
+  display: block;
+  width: 21px;
+  height: 2px;
+  border-radius: 3px;
+  background: #0f172a;
+  transition: all 0.25s ease;
+}
+
+.mobile-sidebar-overlay {
+  display: none;
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 1024px) {
+
+  .doctor-sidebar {
+    width: 250px;
+  }
+
+  .doctor-main {
+    margin-left: 250px;
+  }
+
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 768px) {
+
+  .doctor-dashboard-page {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---------- TOPBAR ---------- */
+
+  .doctor-topbar {
+    width: 100%;
+    min-height: 70px;
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+  }
+
+  .mobile-doctor-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-doctor-brand > div {
+    width: 35px;
+    height: 35px;
+    min-width: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+  }
+
+  .mobile-doctor-brand strong {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  /* ---------- SIDEBAR ---------- */
+
+  .doctor-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 285px;
+    max-width: 86vw;
+    height: 100vh;
+
+    transform: translateX(-105%);
+    transition: transform 0.3s ease;
+
+    z-index: 1100;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    box-shadow: 8px 0 30px rgba(15, 23, 42, 0.18);
+  }
+
+  .doctor-sidebar.mobile-sidebar-open {
+    transform: translateX(0);
+  }
+
+  /* ---------- OVERLAY ---------- */
+
+  .mobile-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    z-index: 1050;
+  }
+
+  /* ---------- MAIN ---------- */
+
+  .doctor-main {
+    width: 100%;
+    margin-left: 0 !important;
+    min-width: 0;
+  }
+
+  /* ---------- BREADCRUMB ---------- */
+
+  .doctor-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .doctor-breadcrumb > span:not(.top-back-btn),
+  .doctor-breadcrumb > b {
+    display: none;
+  }
+
+  .doctor-breadcrumb > strong {
+    display: none;
+  }
+
+  /* ---------- GO BACK ---------- */
+
+  .top-back-btn {
+    min-height: 40px;
+    padding: 0 11px;
+    border-radius: 9px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .top-back-btn strong {
+    display: inline;
+    font-size: 13px;
+  }
+
+  /* ---------- TOP ACTIONS ---------- */
+
+  .doctor-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+  }
+
+  .doctor-top-profile {
+    padding: 4px;
+  }
+
+  .doctor-top-profile > div:not(.doctor-avatar-fallback):not(.doctor-avatar-image) {
+    display: none;
+  }
+
+  .profile-arrow {
+    display: none;
+  }
+
+  .topbar-icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* ---------- CONTENT ---------- */
+
+  .doctor-content,
+  .doctor-page-content,
+  .dashboard-content {
+    width: 100%;
+    padding: 18px 14px;
+  }
+
+  /* ---------- PAGE HEADER ---------- */
+
+  .page-header,
+  .doctor-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .page-header-action,
+  .doctor-page-header-action {
+    width: 100%;
+  }
+
+  /* ---------- BUTTONS ---------- */
+
+  .doctor-primary-btn,
+  .doctor-secondary-btn {
+    min-height: 44px;
+  }
+
+  /* ---------- GRIDS ---------- */
+
+  .doctor-stats-grid,
+  .doctor-dashboard-grid,
+  .doctor-dashboard-grid.lower,
+  .analytics-grid,
+  .prescription-grid,
+  .profile-layout,
+  .settings-layout,
+  .consultation-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ---------- FILTER ---------- */
+
+  .doctor-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .doctor-search {
+    width: 100%;
+  }
+
+  /* ---------- CARDS ---------- */
+
+  .doctor-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* ---------- APPOINTMENTS ---------- */
+
+  .appointment-card {
+    grid-template-columns: 1fr !important;
+    gap: 14px;
+  }
+
+  .appointment-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* ---------- REFERRALS ---------- */
+
+  .referral-card {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  /* ---------- FOLLOW UPS ---------- */
+
+  .followup-card {
+    grid-template-columns: auto 1fr !important;
+    gap: 12px;
+  }
+
+  /* ---------- PROFILE ---------- */
+
+  .profile-details {
+    grid-template-columns: 1fr !important;
+  }
+
+  .profile-main-info {
+    text-align: center;
+  }
+
+  .profile-edit-button {
+    width: 100%;
+  }
+
+  /* ---------- SETTINGS ---------- */
+
+  .settings-sidebar {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  .settings-sidebar button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 480px) {
+
+  .doctor-topbar {
+    padding: 10px 10px;
+    gap: 7px;
+  }
+
+  .mobile-menu-toggle {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mobile-doctor-brand strong {
+    font-size: 14px;
+  }
+
+  .mobile-doctor-brand > div {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+
+  .top-back-btn {
+    padding: 0 9px;
+  }
+
+  .top-back-btn strong {
+    font-size: 12px;
+  }
+
+  .topbar-icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .doctor-top-profile {
+    width: 38px;
+    height: 38px;
+  }
+
+  .doctor-content,
+  .doctor-page-content,
+  .dashboard-content {
+    padding: 14px 10px;
+  }
+
+}
+/* =========================================================
+   MOBILE SIDEBAR - FINAL WORKING FIX
+========================================================= */
+
+@media (max-width: 900px) {
+
+  /* MAIN */
+  .doctor-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* HAMBURGER */
+  .mobile-menu-toggle {
+    display: flex !important;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+
+    align-items: center !important;
+    justify-content: center !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+
+    border: 0 !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+
+    position: relative !important;
+    z-index: 2001 !important;
+  }
+
+  .mobile-menu-toggle span {
+    display: block !important;
+    width: 21px !important;
+    height: 2px !important;
+    border-radius: 5px !important;
+  }
+
+
+  /* =======================================================
+     SIDEBAR
+  ======================================================= */
+
+  .doctor-sidebar {
+    position: fixed !important;
+
+    top: 0 !important;
+    left: 0 !important;
+
+    width: 285px !important;
+    max-width: 88vw !important;
+    height: 100vh !important;
+
+    transform: translateX(-100%) !important;
+
+    transition: transform 0.3s ease !important;
+
+    z-index: 2000 !important;
+
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+
+    visibility: hidden !important;
+
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+
+  /* SIDEBAR OPEN */
+  .doctor-sidebar.mobile-sidebar-open {
+    transform: translateX(0) !important;
+    visibility: visible !important;
+  }
+
+
+  /* =======================================================
+     SIDEBAR ALL CONTENT
+  ======================================================= */
+
+  .doctor-sidebar .doctor-brand {
+    display: flex !important;
+    flex-shrink: 0 !important;
+  }
+
+  .doctor-sidebar .doctor-sidebar-profile {
+    display: flex !important;
+    flex-shrink: 0 !important;
+  }
+
+  .doctor-sidebar .doctor-navigation {
+    display: block !important;
+    width: 100% !important;
+    flex: 1 !important;
+  }
+
+  .doctor-sidebar .doctor-nav-group {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .doctor-sidebar .doctor-nav-group small {
+    display: block !important;
+  }
+
+  .doctor-sidebar .doctor-nav-item {
+    display: flex !important;
+    width: 100% !important;
+
+    align-items: center !important;
+
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .doctor-sidebar .doctor-sidebar-bottom {
+    display: block !important;
+    width: 100% !important;
+
+    flex-shrink: 0 !important;
+  }
+
+
+  /* =======================================================
+     BLACK OVERLAY
+     MUST BE BELOW SIDEBAR
+  ======================================================= */
+
+  .mobile-sidebar-overlay {
+    display: block !important;
+
+    position: fixed !important;
+
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+
+    width: 100vw !important;
+    height: 100vh !important;
+
+    background: rgba(0, 0, 0, 0.45) !important;
+
+    z-index: 1990 !important;
+
+    cursor: pointer !important;
+  }
+
+
+  /* =======================================================
+     TOPBAR
+  ======================================================= */
+
+  .doctor-topbar {
+    position: sticky !important;
+    top: 0 !important;
+
+    width: 100% !important;
+
+    z-index: 1000 !important;
+
+    display: flex !important;
+    align-items: center !important;
+  }
+
+
+  /* =======================================================
+     MOBILE BRAND
+  ======================================================= */
+
+  .mobile-doctor-brand {
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+
+  /* =======================================================
+     GO BACK
+  ======================================================= */
+
+  .doctor-breadcrumb {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+  }
+
+  .doctor-breadcrumb > span:not(.top-back-btn),
+  .doctor-breadcrumb > b {
+    display: none !important;
+  }
+
+  .doctor-breadcrumb > strong {
+    display: none !important;
+  }
+
+  .top-back-btn {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+
+  /* =======================================================
+     TOP ACTIONS
+  ======================================================= */
+
+  .doctor-top-actions {
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+  }
+
+}
+
+
+/* =========================================================
+   SMALL MOBILE
+========================================================= */
+
+@media (max-width: 480px) {
+
+  .doctor-sidebar {
+    width: 280px !important;
+    max-width: 88vw !important;
+  }
+
+  .mobile-menu-toggle {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+
+}
