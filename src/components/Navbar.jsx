@@ -68,6 +68,12 @@ function Navbar({ onGetStarted }) {
           >
             About
           </a>
+          <a
+            href="#feedback"
+            onClick={closeMenu}
+          >
+            Feedback
+          </a>
 
           <Button
             variant="outline"

@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../../api/axiosClient.js";
+import FacilityMap from "../../components/FacilityMap.jsx";
 import "./PatientDashboard.css";
 
 function PatientDashboard() {
@@ -15,30 +17,22 @@ function PatientDashboard() {
   const [menuHistory, setMenuHistory] = useState([]);
 
   // =========================================================
-  // FACILITY
+  // FACILITY & MAP STATE
   // =========================================================
 
   const [facilitySearch, setFacilitySearch] = useState("");
-  const [facilityFilter, setFacilityFilter] =
-    useState("All Facilities");
-  const [selectedFacility, setSelectedFacility] =
-    useState(null);
+  const [facilityFilter, setFacilityFilter] = useState("All Facilities");
+  const [facilityViewMode, setFacilityViewMode] = useState("grid"); // 'grid' | 'map'
+  const [selectedFacility, setSelectedFacility] = useState(null);
 
   // =========================================================
   // SMART RECOMMENDATION
   // =========================================================
 
-  const [recommendationType, setRecommendationType] =
-    useState("General");
-
-  const [recommendationLocation, setRecommendationLocation] =
-    useState("Choubeypur");
-
-  const [selectedPreferences, setSelectedPreferences] =
-    useState(["Nearby"]);
-
-  const [hasRecommended, setHasRecommended] =
-    useState(false);
+  const [recommendationType, setRecommendationType] = useState("General");
+  const [recommendationLocation, setRecommendationLocation] = useState("Choubeypur");
+  const [selectedPreferences, setSelectedPreferences] = useState(["Nearby"]);
+  const [hasRecommended, setHasRecommended] = useState(false);
 
   // =========================================================
   // TRIAGE
@@ -87,8 +81,7 @@ function PatientDashboard() {
     time: "",
   });
 
-  const [showAppointmentForm, setShowAppointmentForm] =
-    useState(false);
+  const [showAppointmentForm, setShowAppointmentForm] = useState(false);
 
   // =========================================================
   // REFERRALS
@@ -122,8 +115,7 @@ function PatientDashboard() {
   // =========================================================
 
   const [medicineSearch, setMedicineSearch] = useState("");
-  const [medicineFilter, setMedicineFilter] =
-    useState("All");
+  const [medicineFilter, setMedicineFilter] = useState("All");
 
   const medicines = [
     {
@@ -243,8 +235,7 @@ function PatientDashboard() {
     {
       id: 1,
       title: "Appointment confirmed",
-      message:
-        "Your general consultation is confirmed for Sep 04, 2026.",
+      message: "Your general consultation is confirmed for Sep 04, 2026.",
       time: "Today, 8:10 AM",
       read: false,
       type: "appointment",
@@ -252,8 +243,7 @@ function PatientDashboard() {
     {
       id: 2,
       title: "Diagnostic referral update",
-      message:
-        "Your diagnostic referral is currently in progress.",
+      message: "Your diagnostic referral is currently in progress.",
       time: "Yesterday",
       read: false,
       type: "referral",
@@ -261,8 +251,7 @@ function PatientDashboard() {
     {
       id: 3,
       title: "Follow-up reminder",
-      message:
-        "Your upcoming follow-up is scheduled for Sep 04.",
+      message: "Your upcoming follow-up is scheduled for Sep 04.",
       time: "Aug 29",
       read: true,
       type: "followup",
@@ -270,20 +259,102 @@ function PatientDashboard() {
   ]);
 
   // =========================================================
-  // PROFILE
+  // PROFILE & PASSWORD STATE
   // =========================================================
 
   const [profile, setProfile] = useState({
     name: "Shivam",
     age: "21",
-    phone: "+91 98765 43210",
+    phone: "9876543210",
     email: "shivam@example.com",
+    password: "password123",
     location: "Choubeypur, Varanasi",
     emergencyContact: "Family Contact",
     profilePicture: "",
   });
 
   const [editProfile, setEditProfile] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordToast, setPasswordToast] = useState("");
+
+  // Load real patient profile & sync with backend/local registration
+  useEffect(() => {
+    const savedUser =
+      localStorage.getItem("swasthya_user") ||
+      localStorage.getItem("swasthyasetu_logged_in_user");
+    const cachedName = localStorage.getItem("userName");
+
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        setProfile((prev) => ({
+          ...prev,
+          name: parsed.name || prev.name,
+          email: parsed.email || prev.email,
+          phone: parsed.phone || prev.phone,
+          password: parsed.password || prev.password,
+          location: parsed.address || parsed.location || prev.location,
+        }));
+      } catch (err) {
+        console.warn("Failed parsing saved user", err);
+      }
+    } else if (cachedName) {
+      setProfile((prev) => ({ ...prev, name: cachedName }));
+    }
+
+    const fetchPatientData = async () => {
+      try {
+        const res = await api.get("/patient/dashboard");
+        if (res.data) {
+          if (res.data.profile) setProfile(res.data.profile);
+          if (res.data.appointments) setAppointments(res.data.appointments);
+        }
+      } catch {
+        // Backend unavailable, runs smoothly in local/demo mode
+      }
+    };
+
+    fetchPatientData();
+  }, []);
+
+  const handleUpdatePassword = (e) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) {
+      alert("Password must be at least 6 characters long.");
+      return;
+    }
+
+    setProfile((prev) => ({ ...prev, password: newPassword }));
+
+    // Sync updated password into local mock stores so login picks it up
+    try {
+      const mockUsers = localStorage.getItem("swasthya_mock_users");
+      if (mockUsers) {
+        const users = JSON.parse(mockUsers);
+        const updated = users.map((u) =>
+          u.email.toLowerCase() === profile.email.toLowerCase()
+            ? { ...u, password: newPassword }
+            : u
+        );
+        localStorage.setItem("swasthya_mock_users", JSON.stringify(updated));
+      }
+
+      const currentUser = localStorage.getItem("swasthya_user");
+      if (currentUser) {
+        const user = JSON.parse(currentUser);
+        user.password = newPassword;
+        localStorage.setItem("swasthya_user", JSON.stringify(user));
+      }
+    } catch (err) {
+      console.warn("Failed syncing password to localStorage", err);
+    }
+
+    setShowPasswordModal(false);
+    setNewPassword("");
+    setPasswordToast("Password updated successfully!");
+    setTimeout(() => setPasswordToast(""), 3000);
+  };
 
   // =========================================================
   // SETTINGS
@@ -495,9 +566,7 @@ function PatientDashboard() {
     }
 
     if (recommendationType === "Emergency") {
-      if (facility.services.includes("Emergency Care"))
-        score += 45;
-
+      if (facility.services.includes("Emergency Care")) score += 45;
       if (facility.hours === "24 Hours") score += 10;
     }
 
@@ -528,9 +597,7 @@ function PatientDashboard() {
       recommendationLocation &&
       facility.location
         .toLowerCase()
-        .includes(
-          recommendationLocation.toLowerCase()
-        )
+        .includes(recommendationLocation.toLowerCase())
     ) {
       score += 20;
     }
@@ -561,20 +628,11 @@ function PatientDashboard() {
     return facilities
       .map((facility) => ({
         ...facility,
-        recommendationScore:
-          getRecommendationScore(facility),
+        recommendationScore: getRecommendationScore(facility),
       }))
-      .sort(
-        (a, b) =>
-          b.recommendationScore -
-          a.recommendationScore
-      )
+      .sort((a, b) => b.recommendationScore - a.recommendationScore)
       .slice(0, 3);
-  }, [
-    recommendationType,
-    recommendationLocation,
-    selectedPreferences,
-  ]);
+  }, [recommendationType, recommendationLocation, selectedPreferences]);
 
   // =========================================================
   // TRIAGE
@@ -583,66 +641,26 @@ function PatientDashboard() {
   const symptomOptions = [
     { id: "fever", label: "Fever", icon: "🌡" },
     { id: "cough", label: "Cough", icon: "◌" },
-    {
-      id: "cold",
-      label: "Cold / Runny Nose",
-      icon: "❄",
-    },
+    { id: "cold", label: "Cold / Runny Nose", icon: "❄" },
     { id: "headache", label: "Headache", icon: "◉" },
     { id: "stomach", label: "Stomach Pain", icon: "○" },
     { id: "vomiting", label: "Vomiting", icon: "↻" },
     { id: "diarrhea", label: "Diarrhea", icon: "≈" },
-    {
-      id: "breathing",
-      label: "Breathing Difficulty",
-      icon: "♡",
-    },
-    {
-      id: "chest",
-      label: "Chest Discomfort",
-      icon: "♥",
-    },
+    { id: "breathing", label: "Breathing Difficulty", icon: "♡" },
+    { id: "chest", label: "Chest Discomfort", icon: "♥" },
     { id: "dizziness", label: "Dizziness", icon: "✧" },
-    {
-      id: "weakness",
-      label: "Weakness / Fatigue",
-      icon: "⚡",
-    },
+    { id: "weakness", label: "Weakness / Fatigue", icon: "⚡" },
     { id: "pain", label: "Other Pain", icon: "✚" },
   ];
 
   const redFlagOptions = [
-    {
-      id: "severeBreathing",
-      label: "Severe difficulty breathing",
-    },
-    {
-      id: "severeChest",
-      label: "Severe or persistent chest discomfort",
-    },
-    {
-      id: "unconscious",
-      label:
-        "Loss of consciousness or extreme unresponsiveness",
-    },
-    {
-      id: "heavyBleeding",
-      label: "Heavy bleeding that does not stop",
-    },
-    {
-      id: "severeConfusion",
-      label:
-        "Severe confusion or sudden major change in alertness",
-    },
-    {
-      id: "strokeSigns",
-      label:
-        "Sudden trouble speaking, seeing or moving normally",
-    },
-    {
-      id: "other",
-      label: "Other warning sign",
-    },
+    { id: "severeBreathing", label: "Severe difficulty breathing" },
+    { id: "severeChest", label: "Severe or persistent chest discomfort" },
+    { id: "unconscious", label: "Loss of consciousness or extreme unresponsiveness" },
+    { id: "heavyBleeding", label: "Heavy bleeding that does not stop" },
+    { id: "severeConfusion", label: "Severe confusion or sudden major change in alertness" },
+    { id: "strokeSigns", label: "Sudden trouble speaking, seeing or moving normally" },
+    { id: "other", label: "Other warning sign" },
   ];
 
   const toggleTriageSymptom = (symptom) => {
@@ -651,7 +669,6 @@ function PatientDashboard() {
         ? current.filter((item) => item !== symptom)
         : [...current, symptom]
     );
-
     setTriageResult(null);
   };
 
@@ -661,7 +678,6 @@ function PatientDashboard() {
         ? current.filter((item) => item !== flag)
         : [...current, flag]
     );
-
     setTriageResult(null);
   };
 
@@ -675,8 +691,7 @@ function PatientDashboard() {
       setTriageResult({
         type: "incomplete",
         title: "Please complete the assessment",
-        message:
-          "Select at least one symptom and complete all required fields.",
+        message: "Select at least one symptom and complete all required fields.",
         action: "Complete the required information.",
       });
       return;
@@ -723,8 +738,7 @@ function PatientDashboard() {
       title = "Prompt medical evaluation recommended";
       message =
         "Because you selected severe symptoms, medical evaluation should be considered promptly.";
-      action =
-        "Consider visiting a healthcare facility as soon as possible.";
+      action = "Consider visiting a healthcare facility as soon as possible.";
     } else if (
       triageSeverity === "Moderate" ||
       triageDuration === "More than 1 week"
@@ -751,12 +765,8 @@ function PatientDashboard() {
 
     const facility =
       priority === "HIGH"
-        ? facilities.find((f) =>
-            f.services.includes("Emergency Care")
-          )
-        : facilities.find(
-            (f) => f.category === "PHC / CHC"
-          );
+        ? facilities.find((f) => f.services.includes("Emergency Care"))
+        : facilities.find((f) => f.category === "PHC / CHC");
 
     const result = {
       type: "normal",
@@ -829,7 +839,6 @@ function PatientDashboard() {
 
   const handleProfilePictureChange = (event) => {
     const file = event.target.files?.[0];
-
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
@@ -838,18 +847,21 @@ function PatientDashboard() {
     }
 
     const reader = new FileReader();
-
     reader.onload = () => {
       setProfile((current) => ({
         ...current,
         profilePicture: reader.result,
       }));
     };
-
     reader.readAsDataURL(file);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("swasthya_role");
+    localStorage.removeItem("swasthya_user");
     navigate("/");
   };
 
@@ -865,7 +877,7 @@ function PatientDashboard() {
   // APPOINTMENT FUNCTIONS
   // =========================================================
 
-  const bookAppointment = () => {
+  const bookAppointment = async () => {
     if (
       !appointmentForm.facility ||
       !appointmentForm.date ||
@@ -886,27 +898,26 @@ function PatientDashboard() {
       status: "Confirmed",
     };
 
-    setAppointments((current) => [
-      newAppointment,
-      ...current,
-    ]);
+    try {
+      await api.post("/patient/appointments", newAppointment);
+    } catch {
+      console.warn("Appointment booked locally (offline mode)");
+    }
 
+    setAppointments((current) => [newAppointment, ...current]);
     setAppointmentForm({
       facility: "",
       type: "General Consultation",
       date: "",
       time: "",
     });
-
     setShowAppointmentForm(false);
   };
 
   const cancelAppointment = (id) => {
     setAppointments((current) =>
       current.map((item) =>
-        item.id === id
-          ? { ...item, status: "Cancelled" }
-          : item
+        item.id === id ? { ...item, status: "Cancelled" } : item
       )
     );
   };
@@ -917,15 +928,13 @@ function PatientDashboard() {
 
   const filteredMedicines = medicines.filter((medicine) => {
     const search = medicineSearch.toLowerCase();
-
     const matchesSearch =
       medicine.name.toLowerCase().includes(search) ||
       medicine.generic.toLowerCase().includes(search) ||
       medicine.pharmacy.toLowerCase().includes(search);
 
     const matchesFilter =
-      medicineFilter === "All" ||
-      medicine.stock === medicineFilter;
+      medicineFilter === "All" || medicine.stock === medicineFilter;
 
     return matchesSearch && matchesFilter;
   });
@@ -968,16 +977,12 @@ function PatientDashboard() {
   // NOTIFICATIONS
   // =========================================================
 
-  const unreadCount = notifications.filter(
-    (item) => !item.read
-  ).length;
+  const unreadCount = notifications.filter((item) => !item.read).length;
 
   const markNotificationRead = (id) => {
     setNotifications((current) =>
       current.map((item) =>
-        item.id === id
-          ? { ...item, read: true }
-          : item
+        item.id === id ? { ...item, read: true } : item
       )
     );
   };
@@ -998,9 +1003,7 @@ function PatientDashboard() {
   const toggleReminder = (id) => {
     setFollowUps((current) =>
       current.map((item) =>
-        item.id === id
-          ? { ...item, reminder: !item.reminder }
-          : item
+        item.id === id ? { ...item, reminder: !item.reminder } : item
       )
     );
   };
@@ -1009,17 +1012,10 @@ function PatientDashboard() {
   // RENDER HELPERS
   // =========================================================
 
-  const PageHeader = ({
-    eyebrow,
-    title,
-    description,
-    icon,
-  }) => (
+  const PageHeader = ({ eyebrow, title, description, icon }) => (
     <div className="module-page-header">
       <div>
-        <span className="section-mini-label">
-          {eyebrow}
-        </span>
+        <span className="section-mini-label">{eyebrow}</span>
         <h2>{title}</h2>
         <p>{description}</p>
       </div>
@@ -1033,22 +1029,14 @@ function PatientDashboard() {
           ← Go Back
         </button>
 
-        <div className="module-header-icon">
-          {icon}
-        </div>
+        <div className="module-header-icon">{icon}</div>
       </div>
     </div>
   );
 
-  // =========================================================
-  // RETURN
-  // =========================================================
-
   return (
     <div className="patient-dashboard">
-
       {/* MOBILE OVERLAY */}
-
       {mobileSidebar && (
         <div
           className="sidebar-overlay"
@@ -1057,14 +1045,7 @@ function PatientDashboard() {
       )}
 
       {/* SIDEBAR */}
-
-      <aside
-        className={`patient-sidebar ${
-          mobileSidebar
-            ? "mobile-sidebar-open"
-            : ""
-        }`}
-      >
+      <aside className={`patient-sidebar ${mobileSidebar ? "mobile-sidebar-open" : ""}`}>
         <button
           className="mobile-sidebar-close"
           onClick={() => setMobileSidebar(false)}
@@ -1073,10 +1054,7 @@ function PatientDashboard() {
         </button>
 
         <div className="dashboard-brand">
-          <div className="dashboard-brand-logo">
-            ✚
-          </div>
-
+          <div className="dashboard-brand-logo">✚</div>
           <div className="dashboard-brand-text">
             <strong>SwasthyaSetu</strong>
             <span>Connected Care</span>
@@ -1084,10 +1062,7 @@ function PatientDashboard() {
         </div>
 
         <div className="sidebar-role">
-          <div className="sidebar-role-icon">
-            ♙
-          </div>
-
+          <div className="sidebar-role-icon">♙</div>
           <div>
             <small>LOGGED IN AS</small>
             <strong>Patient</strong>
@@ -1095,34 +1070,18 @@ function PatientDashboard() {
         </div>
 
         <nav className="dashboard-navigation">
-          <div className="navigation-label">
-            MAIN MENU
-          </div>
+          <div className="navigation-label">MAIN MENU</div>
 
           {menuItems.map((item) => (
             <button
               key={item.name}
-              className={`dashboard-nav-item ${
-                activeMenu === item.name
-                  ? "active"
-                  : ""
-              }`}
-              onClick={() =>
-                handleMenuClick(item.name)
-              }
+              className={`dashboard-nav-item ${activeMenu === item.name ? "active" : ""}`}
+              onClick={() => handleMenuClick(item.name)}
             >
-              <span className="nav-item-icon">
-                {item.icon}
-              </span>
-
-              <span className="nav-item-text">
-                {item.name}
-              </span>
-
+              <span className="nav-item-icon">{item.icon}</span>
+              <span className="nav-item-text">{item.name}</span>
               {activeMenu === item.name && (
-                <span className="nav-active-indicator">
-                  ›
-                </span>
+                <span className="nav-active-indicator">›</span>
               )}
             </button>
           ))}
@@ -1130,21 +1089,22 @@ function PatientDashboard() {
 
         <div className="sidebar-bottom">
           <button
+            className={`sidebar-nav-item ${activeMenu === "Notifications" ? "active" : ""}`}
+            onClick={() => handleMenuClick("Notifications")}
+          >
+            <span className="nav-item-icon">🔔</span>
+            <span className="nav-item-text">Notifications</span>
+            {unreadCount > 0 && <b className="sidebar-unread-badge">{unreadCount}</b>}
+          </button>
+          <button
             className="sidebar-help-button"
-            onClick={() =>
-              alert(
-                "For support, please contact your healthcare facility."
-              )
-            }
+            onClick={() => alert("For support, please contact your healthcare facility.")}
           >
             <span>?</span>
             Help & Support
           </button>
 
-          <button
-            className="sidebar-logout"
-            onClick={handleLogout}
-          >
+          <button className="sidebar-logout" onClick={handleLogout}>
             <span>↪</span>
             Logout
           </button>
@@ -1152,61 +1112,39 @@ function PatientDashboard() {
       </aside>
 
       {/* MAIN */}
-
       <div className="dashboard-main">
-
         {/* TOPBAR */}
-
         <header className="dashboard-topbar">
-
           <div className="topbar-left">
-
             <button
               className="mobile-menu-icon"
-              onClick={() =>
-                setMobileSidebar(true)
-              }
+              onClick={() => setMobileSidebar(true)}
             >
               ☰
             </button>
 
             <div>
-              <span className="topbar-section-label">
-                PATIENT PORTAL
-              </span>
-
+              <span className="topbar-section-label">PATIENT PORTAL</span>
               <h1>{activeMenu}</h1>
             </div>
-
           </div>
 
           <div className="topbar-right">
-
             <button
               className="notification-button"
-              onClick={() =>
-                handleMenuClick("Notifications")
-              }
+              onClick={() => handleMenuClick("Notifications")}
             >
-              <span>♢</span>
-
-              {unreadCount > 0 && (
-                <i>{unreadCount}</i>
-              )}
+              <span>🔔</span>
+              {unreadCount > 0 && <i>{unreadCount}</i>}
             </button>
 
             <button
               className="topbar-profile"
-              onClick={() =>
-                setShowProfile(!showProfile)
-              }
+              onClick={() => setShowProfile(!showProfile)}
             >
               <div className="profile-avatar">
                 {profile.profilePicture ? (
-                  <img
-                    src={profile.profilePicture}
-                    alt="Profile"
-                  />
+                  <img src={profile.profilePicture} alt="Profile" />
                 ) : (
                   (profile.name || "Patient")
                     .trim()
@@ -1223,21 +1161,15 @@ function PatientDashboard() {
                 <span>Patient</span>
               </div>
 
-              <span className="profile-arrow">
-                ▾
-              </span>
+              <span className="profile-arrow">▾</span>
             </button>
 
             {showProfile && (
               <div className="profile-dropdown">
-
                 <div className="dropdown-profile">
                   <div className="profile-avatar large">
                     {profile.profilePicture ? (
-                      <img
-                        src={profile.profilePicture}
-                        alt="Profile"
-                      />
+                      <img src={profile.profilePicture} alt="Profile" />
                     ) : (
                       (profile.name || "Patient")
                         .trim()
@@ -1275,99 +1207,78 @@ function PatientDashboard() {
                   ⚙ Settings
                 </button>
 
-                <button onClick={handleLogout}>
-                  ↪ Logout
-                </button>
-
+                <button onClick={handleLogout}>↪ Logout</button>
               </div>
             )}
-
           </div>
         </header>
 
         {/* CONTENT */}
-
         <main className="dashboard-content">
+          {/* TOAST MESSAGE */}
+          {passwordToast && (
+            <div
+              style={{
+                background: "var(--primary-light, #e6f7f5)",
+                color: "var(--primary-dark, #08746e)",
+                padding: "12px 18px",
+                borderRadius: "10px",
+                marginBottom: "20px",
+                fontWeight: "600",
+                fontSize: "14px",
+                border: "1px solid var(--primary, #08746e)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span>✓</span> {passwordToast}
+            </div>
+          )}
 
           {/* ===================================================
               DASHBOARD
           =================================================== */}
-
           {activeMenu === "Dashboard" && (
             <>
               <section className="welcome-banner">
-
                 <div className="welcome-content">
-                  <span className="welcome-eyebrow">
-                    YOUR HEALTHCARE JOURNEY
-                  </span>
-
-                  <h2>
-                    Good morning, {profile.name || "Patient"}.
-                  </h2>
-
+                  <span className="welcome-eyebrow">YOUR HEALTHCARE JOURNEY</span>
+                  <h2>Good morning, {profile.name || "Patient"}.</h2>
                   <p>
-                    Stay connected with your healthcare
-                    journey and access the care you need.
+                    Stay connected with your healthcare journey and access the care you need.
                   </p>
                 </div>
 
                 <div className="welcome-visual">
                   <div className="welcome-circle circle-one" />
                   <div className="welcome-circle circle-two" />
-
-                  <div className="welcome-cross">
-                    ✚
-                  </div>
+                  <div className="welcome-cross">✚</div>
                 </div>
-
               </section>
 
               <section className="care-alert">
-
-                <div className="care-alert-icon">
-                  !
-                </div>
-
+                <div className="care-alert-icon">!</div>
                 <div className="care-alert-content">
                   <span>CARE JOURNEY UPDATE</span>
-
-                  <strong>
-                    Your diagnostic referral is awaiting completion.
-                  </strong>
-
-                  <p>
-                    Complete your diagnostic test before your
-                    scheduled follow-up.
-                  </p>
+                  <strong>Your diagnostic referral is awaiting completion.</strong>
+                  <p>Complete your diagnostic test before your scheduled follow-up.</p>
                 </div>
 
-                <button
-                  onClick={() =>
-                    handleMenuClick("Care Journey")
-                  }
-                >
+                <button onClick={() => handleMenuClick("Care Journey")}>
                   View Journey →
                 </button>
-
               </section>
 
               <section className="dashboard-section">
-
                 <div className="dashboard-section-header">
                   <div>
-                    <span className="section-mini-label">
-                      QUICK ACCESS
-                    </span>
-
-                    <h2>
-                      What would you like to do?
-                    </h2>
+                    <span className="section-mini-label">QUICK ACCESS</span>
+                    <h2>What would you like to do?</h2>
                   </div>
                 </div>
 
                 <div className="quick-actions-grid">
-
                   {[
                     [
                       "Find a Facility",
@@ -1397,110 +1308,70 @@ function PatientDashboard() {
                     <button
                       key={item[0]}
                       className="quick-action-card"
-                      onClick={() =>
-                        handleMenuClick(item[3])
-                      }
+                      onClick={() => handleMenuClick(item[3])}
                     >
-                      <div className="quick-action-icon">
-                        {item[2]}
-                      </div>
-
+                      <div className="quick-action-icon">{item[2]}</div>
                       <div className="quick-action-content">
                         <h3>{item[0]}</h3>
                         <p>{item[1]}</p>
                       </div>
-
-                      <span className="quick-action-arrow">
-                        →
-                      </span>
+                      <span className="quick-action-arrow">→</span>
                     </button>
                   ))}
-
                 </div>
-
               </section>
 
               <section className="dashboard-overview-grid">
-
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>UPCOMING APPOINTMENT</span>
                       <h3>Your next visit</h3>
                     </div>
-
-                    <div className="card-header-icon">
-                      ▣
-                    </div>
+                    <div className="card-header-icon">▣</div>
                   </div>
 
                   <div className="appointment-date">
-
                     <div className="date-box">
                       <span>SEP</span>
                       <strong>04</strong>
                     </div>
-
                     <div>
-                      <strong>
-                        General Consultation
-                      </strong>
+                      <strong>General Consultation</strong>
                       <span>10:30 AM</span>
                     </div>
-
                   </div>
 
                   <div className="appointment-facility">
-
-                    <span className="facility-icon">
-                      ⌖
-                    </span>
-
+                    <span className="facility-icon">⌖</span>
                     <div>
-                      <strong>
-                        Community Health Centre
-                      </strong>
+                      <strong>Community Health Centre</strong>
                       <span>Choubeypur</span>
                     </div>
-
-                    <span className="appointment-status">
-                      Confirmed
-                    </span>
-
+                    <span className="appointment-status">Confirmed</span>
                   </div>
 
                   <button
                     className="card-link-button"
-                    onClick={() =>
-                      handleMenuClick(
-                        "Appointments"
-                      )
-                    }
+                    onClick={() => handleMenuClick("Appointments")}
                   >
                     View appointment →
                   </button>
-
                 </div>
 
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>REFERRAL STATUS</span>
                       <h3>Active referral</h3>
                     </div>
-
-                    <div className="card-header-icon">
-                      ↗
-                    </div>
+                    <div className="card-header-icon">↗</div>
                   </div>
 
                   <div className="referral-status">
                     <div className="referral-progress">
                       <div className="referral-progress-fill" />
                     </div>
-
                     <div className="referral-progress-labels">
                       <span>Created</span>
                       <span>Accepted</span>
@@ -1514,49 +1385,34 @@ function PatientDashboard() {
                       <small>REFERRED TO</small>
                       <strong>District Hospital</strong>
                     </div>
-
-                    <span className="referral-badge">
-                      In Progress
-                    </span>
+                    <span className="referral-badge">In Progress</span>
                   </div>
 
                   <button
                     className="card-link-button"
-                    onClick={() =>
-                      handleMenuClick("Referrals")
-                    }
+                    onClick={() => handleMenuClick("Referrals")}
                   >
                     Track referral →
                   </button>
-
                 </div>
-
               </section>
 
               <section className="dashboard-lower-grid">
-
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>CARE JOURNEY</span>
                       <h3>Your healthcare journey</h3>
                     </div>
-
                     <button
                       className="view-all-button"
-                      onClick={() =>
-                        handleMenuClick(
-                          "Care Journey"
-                        )
-                      }
+                      onClick={() => handleMenuClick("Care Journey")}
                     >
                       View all
                     </button>
                   </div>
 
                   <div className="dashboard-timeline">
-
                     {[
                       [
                         "completed",
@@ -1587,148 +1443,83 @@ function PatientDashboard() {
                         "Sep 04",
                       ],
                     ].map((item) => (
-                      <div
-                        className={`timeline-item ${item[0]}`}
-                        key={item[2]}
-                      >
-                        <div className="timeline-marker">
-                          {item[1]}
-                        </div>
-
+                      <div className={`timeline-item ${item[0]}`} key={item[2]}>
+                        <div className="timeline-marker">{item[1]}</div>
                         <div className="timeline-content">
                           <strong>{item[2]}</strong>
                           <span>{item[3]}</span>
                         </div>
-
                         <small>{item[4]}</small>
                       </div>
                     ))}
-
                   </div>
-
                 </div>
 
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>CARE STATUS</span>
                       <h3>Current status</h3>
                     </div>
-
-                    <div className="health-status-icon">
-                      ♥
-                    </div>
+                    <div className="health-status-icon">♥</div>
                   </div>
 
                   <div className="health-status-main">
-                    <div className="status-circle">
-                      ✓
-                    </div>
-
+                    <div className="status-circle">✓</div>
                     <div>
-                      <strong>
-                        Care journey active
-                      </strong>
-
-                      <span>
-                        Your current care plan is being tracked.
-                      </span>
+                      <strong>Care journey active</strong>
+                      <span>Your current care plan is being tracked.</span>
                     </div>
                   </div>
 
                   <div className="status-items">
                     <div>
-                      <span className="status-check">
-                        ✓
-                      </span>
+                      <span className="status-check">✓</span>
                       Referral accepted
                     </div>
-
                     <div>
-                      <span className="status-check">
-                        ✓
-                      </span>
+                      <span className="status-check">✓</span>
                       Appointment scheduled
                     </div>
-
                     <div>
-                      <span className="status-pending">
-                        !
-                      </span>
+                      <span className="status-pending">!</span>
                       Diagnostic pending
                     </div>
                   </div>
-
                 </div>
-
               </section>
 
               <section className="dashboard-section">
-
                 <div className="dashboard-section-header">
                   <div>
-                    <span className="section-mini-label">
-                      NEARBY SERVICES
-                    </span>
-
-                    <h2>
-                      Healthcare availability
-                    </h2>
+                    <span className="section-mini-label">NEARBY SERVICES</span>
+                    <h2>Healthcare availability</h2>
                   </div>
 
                   <button
                     className="section-view-button"
-                    onClick={() =>
-                      handleMenuClick(
-                        "Find Facility"
-                      )
-                    }
+                    onClick={() => handleMenuClick("Find Facility")}
                   >
                     Explore facilities →
                   </button>
                 </div>
 
                 <div className="availability-grid">
-
                   {[
-                    [
-                      "✚",
-                      "General Medicine",
-                      "Available nearby",
-                    ],
-                    [
-                      "⌕",
-                      "Diagnostics",
-                      "2 facilities nearby",
-                    ],
-                    [
-                      "▤",
-                      "Medicines",
-                      "Stock information available",
-                    ],
+                    ["✚", "General Medicine", "Available nearby"],
+                    ["⌕", "Diagnostics", "2 facilities nearby"],
+                    ["▤", "Medicines", "Stock information available"],
                   ].map((item) => (
-                    <div
-                      className="availability-card"
-                      key={item[1]}
-                    >
-                      <div className="availability-icon">
-                        {item[0]}
-                      </div>
-
+                    <div className="availability-card" key={item[1]}>
+                      <div className="availability-icon">{item[0]}</div>
                       <div>
                         <strong>{item[1]}</strong>
                         <span>{item[2]}</span>
                       </div>
-
-                      <span className="availability-status">
-                        Available
-                      </span>
+                      <span className="availability-status">Available</span>
                     </div>
                   ))}
-
                 </div>
-
               </section>
             </>
           )}
@@ -1736,10 +1527,8 @@ function PatientDashboard() {
           {/* ===================================================
               FIND FACILITY
           =================================================== */}
-
           {activeMenu === "Find Facility" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="HEALTHCARE ACCESS"
                 title="Find a Healthcare Facility"
@@ -1747,149 +1536,187 @@ function PatientDashboard() {
                 icon="⌖"
               />
 
-              <div className="facility-search-card">
-
-                <div className="facility-search-box">
-                  <span>⌕</span>
-
-                  <input
-                    value={facilitySearch}
-                    onChange={(e) =>
-                      setFacilitySearch(
-                        e.target.value
-                      )
-                    }
-                    placeholder="Search facility, service or specialty..."
-                  />
-
-                  {facilitySearch && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "16px",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div className="facility-filters" style={{ margin: 0 }}>
+                  {[
+                    "All Facilities",
+                    "Hospitals",
+                    "PHC / CHC",
+                    "Diagnostics",
+                    "Pharmacy",
+                  ].map((filter) => (
                     <button
-                      onClick={() =>
-                        setFacilitySearch("")
-                      }
+                      key={filter}
+                      className={facilityFilter === filter ? "active" : ""}
+                      onClick={() => setFacilityFilter(filter)}
                     >
-                      ×
+                      {filter}
                     </button>
-                  )}
+                  ))}
                 </div>
 
-                <button
-                  className="facility-search-button"
-                  onClick={() =>
-                    setFacilitySearch(
-                      facilitySearch.trim()
-                    )
-                  }
+                {/* View Mode Toggle: Grid or Map */}
+                <div
+                  style={{
+                    display: "flex",
+                    background: "var(--surface)",
+                    padding: "4px",
+                    borderRadius: "10px",
+                    border: "1px solid var(--border)",
+                  }}
                 >
-                  Search
-                </button>
-
-              </div>
-
-              <div className="facility-filters">
-                {[
-                  "All Facilities",
-                  "Hospitals",
-                  "PHC / CHC",
-                  "Diagnostics",
-                  "Pharmacy",
-                ].map((filter) => (
                   <button
-                    key={filter}
-                    className={
-                      facilityFilter === filter
-                        ? "active"
-                        : ""
-                    }
-                    onClick={() =>
-                      setFacilityFilter(filter)
-                    }
+                    type="button"
+                    onClick={() => setFacilityViewMode("grid")}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      border: "none",
+                      cursor: "pointer",
+                      background:
+                        facilityViewMode === "grid"
+                          ? "var(--primary)"
+                          : "transparent",
+                      color:
+                        facilityViewMode === "grid"
+                          ? "var(--white)"
+                          : "var(--text-muted)",
+                    }}
                   >
-                    {filter}
+                    ▤ Grid View
                   </button>
-                ))}
-              </div>
 
-              <div className="facility-results-header">
-                <div>
-                  <span>AVAILABLE FACILITIES</span>
-                  <h3>
-                    Healthcare facilities near you
-                  </h3>
-                </div>
-
-                <small>
-                  {filteredFacilities.length} found
-                </small>
-              </div>
-
-              <div className="facility-grid">
-
-                {filteredFacilities.map((facility) => (
-                  <div
-                    className="facility-card"
-                    key={facility.id}
+                  <button
+                    type="button"
+                    onClick={() => setFacilityViewMode("map")}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      border: "none",
+                      cursor: "pointer",
+                      background:
+                        facilityViewMode === "map"
+                          ? "var(--primary)"
+                          : "transparent",
+                      color:
+                        facilityViewMode === "map"
+                          ? "var(--white)"
+                          : "var(--text-muted)",
+                    }}
                   >
-                    <div className="facility-card-top">
-                      <div className="facility-main-icon">
-                        {facility.icon}
-                      </div>
+                    📍 Interactive Map
+                  </button>
+                </div>
+              </div>
 
-                      <span className="facility-open">
-                        {facility.status}
-                      </span>
-                    </div>
-
-                    <h3>{facility.name}</h3>
-
-                    <p className="facility-type">
-                      {facility.type} •{" "}
-                      {facility.specialty}
-                    </p>
-
-                    <div className="facility-info">
-                      ⌖ {facility.location}
-                    </div>
-
-                    <div className="facility-info">
-                      ◷ {facility.hours}
-                    </div>
-
-                    <div className="facility-services">
-                      {facility.services
-                        .slice(0, 2)
-                        .map((service) => (
-                          <span key={service}>
-                            {service}
-                          </span>
-                        ))}
+              {facilityViewMode === "map" ? (
+                <div
+                  style={{
+                    height: "600px",
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    border: "1px solid var(--border)",
+                    boxShadow: "var(--shadow-sm)",
+                    marginBottom: "32px",
+                  }}
+                >
+                  <FacilityMap
+                    onSelectFacility={(fac) => setSelectedFacility(fac)}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="facility-search-card">
+                    <div className="facility-search-box">
+                      <span>⌕</span>
+                      <input
+                        value={facilitySearch}
+                        onChange={(e) => setFacilitySearch(e.target.value)}
+                        placeholder="Search facility, service or specialty..."
+                      />
+                      {facilitySearch && (
+                        <button onClick={() => setFacilitySearch("")}>×</button>
+                      )}
                     </div>
 
                     <button
-                      className="facility-view-button"
-                      onClick={() =>
-                        setSelectedFacility(
-                          facility
-                        )
-                      }
+                      className="facility-search-button"
+                      onClick={() => setFacilitySearch(facilitySearch.trim())}
                     >
-                      View Facility →
+                      Search
                     </button>
                   </div>
-                ))}
 
-              </div>
+                  <div className="facility-results-header">
+                    <div>
+                      <span>AVAILABLE FACILITIES</span>
+                      <h3>Healthcare facilities near you</h3>
+                    </div>
+                    <small>{filteredFacilities.length} found</small>
+                  </div>
 
+                  <div className="facility-grid">
+                    {filteredFacilities.map((facility) => (
+                      <div className="facility-card" key={facility.id}>
+                        <div className="facility-card-top">
+                          <div className="facility-main-icon">
+                            {facility.icon}
+                          </div>
+                          <span className="facility-open">
+                            {facility.status}
+                          </span>
+                        </div>
+
+                        <h3>{facility.name}</h3>
+                        <p className="facility-type">
+                          {facility.type} • {facility.specialty}
+                        </p>
+
+                        <div className="facility-info">
+                          ⌖ {facility.location}
+                        </div>
+                        <div className="facility-info">
+                          ◷ {facility.hours}
+                        </div>
+
+                        <div className="facility-services">
+                          {facility.services.slice(0, 2).map((service) => (
+                            <span key={service}>{service}</span>
+                          ))}
+                        </div>
+
+                        <button
+                          className="facility-view-button"
+                          onClick={() => setSelectedFacility(facility)}
+                        >
+                          View Facility →
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
           )}
 
           {/* ===================================================
               SMART RECOMMENDATION
           =================================================== */}
-
           {activeMenu === "Smart Recommendation" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="AI-ASSISTED HEALTHCARE ACCESS"
                 title="Smart Facility Recommendation"
@@ -1898,111 +1725,66 @@ function PatientDashboard() {
               />
 
               <div className="smart-info-banner">
-                <div className="smart-info-icon">
-                  ✦
-                </div>
-
+                <div className="smart-info-icon">✦</div>
                 <div>
-                  <strong>
-                    Find the right care, closer to you
-                  </strong>
-
+                  <strong>Find the right care, closer to you</strong>
                   <p>
-                    Select your healthcare need and
-                    preferences. SwasthyaSetu will rank
-                    suitable facilities.
+                    Select your healthcare need and preferences. SwasthyaSetu will rank suitable facilities.
                   </p>
                 </div>
               </div>
 
               <div className="smart-recommendation-grid">
-
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>STEP 1</span>
-                      <h3>
-                        Tell us what care you need
-                      </h3>
+                      <h3>Tell us what care you need</h3>
                     </div>
                   </div>
 
                   <div className="recommendation-field">
-                    <label>
-                      Healthcare requirement
-                    </label>
-
+                    <label>Healthcare requirement</label>
                     <select
                       value={recommendationType}
-                      onChange={(e) =>
-                        setRecommendationType(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setRecommendationType(e.target.value)}
                     >
-                      <option value="General">
-                        General Consultation
-                      </option>
-                      <option value="Emergency">
-                        Emergency Care
-                      </option>
-                      <option value="Diagnostics">
-                        Diagnostic Test
-                      </option>
-                      <option value="Specialist">
-                        Specialist Consultation
-                      </option>
-                      <option value="Medicine">
-                        Medicine / Pharmacy
-                      </option>
+                      <option value="General">General Consultation</option>
+                      <option value="Emergency">Emergency Care</option>
+                      <option value="Diagnostics">Diagnostic Test</option>
+                      <option value="Specialist">Specialist Consultation</option>
+                      <option value="Medicine">Medicine / Pharmacy</option>
                     </select>
                   </div>
 
                   <div className="recommendation-field">
                     <label>Preferred location</label>
-
                     <input
                       value={recommendationLocation}
-                      onChange={(e) =>
-                        setRecommendationLocation(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setRecommendationLocation(e.target.value)}
                       placeholder="Enter location"
                     />
                   </div>
 
                   <div className="recommendation-preferences">
                     <label>Preferences</label>
-
                     <div className="preference-options">
-                      {[
-                        "Nearby",
-                        "Available Now",
-                        "Affordable",
-                      ].map((preference) => (
-                        <button
-                          key={preference}
-                          className={
-                            selectedPreferences.includes(
-                              preference
-                            )
-                              ? "selected"
-                              : ""
-                          }
-                          onClick={() =>
-                            togglePreference(
-                              preference
-                            )
-                          }
-                        >
-                          {selectedPreferences.includes(
-                            preference
-                          ) && "✓ "}
-                          {preference}
-                        </button>
-                      ))}
+                      {["Nearby", "Available Now", "Affordable"].map(
+                        (preference) => (
+                          <button
+                            key={preference}
+                            className={
+                              selectedPreferences.includes(preference)
+                                ? "selected"
+                                : ""
+                            }
+                            onClick={() => togglePreference(preference)}
+                          >
+                            {selectedPreferences.includes(preference) && "✓ "}
+                            {preference}
+                          </button>
+                        )
+                      )}
                     </div>
                   </div>
 
@@ -2010,36 +1792,26 @@ function PatientDashboard() {
                     className="recommendation-button"
                     onClick={() => {
                       setHasRecommended(true);
-
                       setTimeout(() => {
                         document
-                          .getElementById(
-                            "recommended-results"
-                          )
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                          });
+                          .getElementById("recommended-results")
+                          ?.scrollIntoView({ behavior: "smooth" });
                       }, 100);
                     }}
                   >
                     ✦ Find Best Facility →
                   </button>
-
                 </div>
 
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>HOW IT WORKS</span>
-                      <h3>
-                        Smart recommendation
-                      </h3>
+                      <h3>Smart recommendation</h3>
                     </div>
                   </div>
 
                   <div className="recommendation-steps">
-
                     {[
                       [
                         "1",
@@ -2062,143 +1834,82 @@ function PatientDashboard() {
                         "Suitable facilities are automatically ranked.",
                       ],
                     ].map((item) => (
-                      <div
-                        className="recommendation-step"
-                        key={item[0]}
-                      >
-                        <div className="recommendation-step-number">
-                          {item[0]}
-                        </div>
-
+                      <div className="recommendation-step" key={item[0]}>
+                        <div className="recommendation-step-number">{item[0]}</div>
                         <div>
                           <strong>{item[1]}</strong>
                           <p>{item[2]}</p>
                         </div>
                       </div>
                     ))}
-
                   </div>
-
                 </div>
-
               </div>
 
-              <section
-                id="recommended-results"
-                className="recommended-section"
-              >
-
+              <section id="recommended-results" className="recommended-section">
                 <div className="dashboard-section-header">
                   <div>
-                    <span className="section-mini-label">
-                      RECOMMENDED FOR YOU
-                    </span>
-
-                    <h2>
-                      Suitable healthcare facilities
-                    </h2>
+                    <span className="section-mini-label">RECOMMENDED FOR YOU</span>
+                    <h2>Suitable healthcare facilities</h2>
                   </div>
                 </div>
 
                 {!hasRecommended ? (
                   <div className="recommendation-empty-state">
-                    <div className="recommendation-empty-icon">
-                      ✦
-                    </div>
-
-                    <h3>
-                      Ready to find your best facility?
-                    </h3>
-
-                    <p>
-                      Select your requirements and click
-                      Find Best Facility.
-                    </p>
+                    <div className="recommendation-empty-icon">✦</div>
+                    <h3>Ready to find your best facility?</h3>
+                    <p>Select your requirements and click Find Best Facility.</p>
                   </div>
                 ) : (
                   <div className="recommended-facility-grid">
-                    {recommendedFacilities.map(
-                      (facility, index) => (
-                        <div
-                          className={`recommended-facility-card ${
-                            index === 0
-                              ? "best-recommendation"
-                              : ""
-                          }`}
-                          key={facility.id}
-                        >
-                          <div className="recommended-top">
-                            <div className="recommended-icon">
-                              {facility.icon}
-                            </div>
-
-                            <span className="recommended-score">
-                              {index === 0
-                                ? "Best Match"
-                                : "Good Match"}
-                            </span>
-                          </div>
-
-                          <h3>{facility.name}</h3>
-
-                          <p>
-                            {facility.specialty}
-                          </p>
-
-                          <div className="recommendation-score-box">
-                            <div className="recommendation-score-circle">
-                              {
-                                facility.recommendationScore
-                              }
-                              %
-                            </div>
-
-                            <div>
-                              <strong>
-                                Recommendation Match
-                              </strong>
-                              <span>
-                                Based on your selection
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="recommended-details">
-                            <span>
-                              ⌖ {facility.location}
-                            </span>
-                            <span>
-                              ◷ {facility.hours}
-                            </span>
-                          </div>
-
-                          <button
-                            onClick={() =>
-                              setSelectedFacility(
-                                facility
-                              )
-                            }
-                          >
-                            View Facility →
-                          </button>
+                    {recommendedFacilities.map((facility, index) => (
+                      <div
+                        className={`recommended-facility-card ${
+                          index === 0 ? "best-recommendation" : ""
+                        }`}
+                        key={facility.id}
+                      >
+                        <div className="recommended-top">
+                          <div className="recommended-icon">{facility.icon}</div>
+                          <span className="recommended-score">
+                            {index === 0 ? "Best Match" : "Good Match"}
+                          </span>
                         </div>
-                      )
-                    )}
+
+                        <h3>{facility.name}</h3>
+                        <p>{facility.specialty}</p>
+
+                        <div className="recommendation-score-box">
+                          <div className="recommendation-score-circle">
+                            {facility.recommendationScore}%
+                          </div>
+                          <div>
+                            <strong>Recommendation Match</strong>
+                            <span>Based on your selection</span>
+                          </div>
+                        </div>
+
+                        <div className="recommended-details">
+                          <span>⌖ {facility.location}</span>
+                          <span>◷ {facility.hours}</span>
+                        </div>
+
+                        <button onClick={() => setSelectedFacility(facility)}>
+                          View Facility →
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
-
               </section>
-
             </section>
           )}
 
           {/* ===================================================
               DIGITAL TRIAGE
           =================================================== */}
-
           {activeMenu === "Digital Triage" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="SMART CARE ASSESSMENT"
                 title="Digital Triage"
@@ -2207,138 +1918,81 @@ function PatientDashboard() {
               />
 
               <div className="triage-safety-banner">
-                <div className="triage-safety-icon">
-                  !
-                </div>
-
+                <div className="triage-safety-icon">!</div>
                 <div>
                   <strong>Important</strong>
-
                   <p>
-                    This assessment is for guidance only
-                    and does not provide a medical diagnosis.
-                    If you feel seriously unwell or have an
-                    emergency, seek immediate medical help.
+                    This assessment is for guidance only and does not provide a medical diagnosis. If you feel seriously unwell or have an emergency, seek immediate medical help.
                   </p>
                 </div>
               </div>
 
               <div className="dashboard-card triage-card">
-
                 <div className="triage-card-heading">
-                  <div className="triage-number">
-                    01
-                  </div>
-
+                  <div className="triage-number">01</div>
                   <div>
                     <span>REQUIRED</span>
-                    <h3>
-                      What symptoms are you experiencing?
-                    </h3>
+                    <h3>What symptoms are you experiencing?</h3>
                     <p>Select all that apply.</p>
                   </div>
                 </div>
 
                 <div className="triage-symptoms-grid">
-
                   {symptomOptions.map((symptom) => {
-                    const selected =
-                      triageSymptoms.includes(
-                        symptom.id
-                      );
-
+                    const selected = triageSymptoms.includes(symptom.id);
                     return (
                       <button
                         key={symptom.id}
-                        className={
-                          selected
-                            ? "triage-symptom selected"
-                            : "triage-symptom"
-                        }
-                        onClick={() =>
-                          toggleTriageSymptom(
-                            symptom.id
-                          )
-                        }
+                        className={selected ? "triage-symptom selected" : "triage-symptom"}
+                        onClick={() => toggleTriageSymptom(symptom.id)}
                       >
-                        <span>
-                          {symptom.icon}
-                        </span>
-
+                        <span>{symptom.icon}</span>
                         {symptom.label}
-
-                        {selected && (
-                          <b>✓</b>
-                        )}
+                        {selected && <b>✓</b>}
                       </button>
                     );
                   })}
-
                 </div>
 
                 <div className="triage-selected-summary">
-                  <strong>
-                    {triageSymptoms.length}
-                  </strong>{" "}
-                  symptom
-                  {triageSymptoms.length !== 1
-                    ? "s"
-                    : ""}{" "}
-                  selected
+                  <strong>{triageSymptoms.length}</strong> symptom
+                  {triageSymptoms.length !== 1 ? "s" : ""} selected
                 </div>
-
               </div>
 
               <div className="triage-details-grid">
-
                 <div className="dashboard-card triage-card">
-
                   <div className="triage-card-heading compact">
-                    <div className="triage-number">
-                      02
-                    </div>
-
+                    <div className="triage-number">02</div>
                     <div>
                       <span>REQUIRED</span>
-                      <h3>
-                        How severe are your symptoms?
-                      </h3>
+                      <h3>How severe are your symptoms?</h3>
                     </div>
                   </div>
 
                   <div className="triage-radio-list">
-                    {[
-                      "Mild",
-                      "Moderate",
-                      "Severe",
-                    ].map((severity) => (
+                    {["Mild", "Moderate", "Severe"].map((severity) => (
                       <button
                         key={severity}
                         className={
-                          triageSeverity ===
-                          severity
+                          triageSeverity === severity
                             ? "triage-radio-option selected"
                             : "triage-radio-option"
                         }
                         onClick={() => {
-                          setTriageSeverity(
-                            severity
-                          );
+                          setTriageSeverity(severity);
                           setTriageResult(null);
                         }}
                       >
                         <span className="triage-radio-circle">
-                          {triageSeverity ===
-                            severity && "●"}
+                          {triageSeverity === severity && "●"}
                         </span>
-
                         <span>
                           <strong>{severity}</strong>
                           <small>
                             {severity === "Mild"
                               ? "Manageable symptoms."
-                              : severity ===
-                                "Moderate"
+                              : severity === "Moderate"
                               ? "Noticeable symptoms affecting activities."
                               : "Very strong or rapidly worsening symptoms."}
                           </small>
@@ -2346,216 +2000,128 @@ function PatientDashboard() {
                       </button>
                     ))}
                   </div>
-
                 </div>
 
                 <div className="dashboard-card triage-card">
-
                   <div className="triage-card-heading compact">
-                    <div className="triage-number">
-                      03
-                    </div>
-
+                    <div className="triage-number">03</div>
                     <div>
                       <span>REQUIRED</span>
-                      <h3>
-                        How long have you had them?
-                      </h3>
+                      <h3>How long have you had them?</h3>
                     </div>
                   </div>
 
                   <div className="triage-duration-grid">
-                    {[
-                      "Today",
-                      "1–3 days",
-                      "4–7 days",
-                      "More than 1 week",
-                    ].map((duration) => (
-                      <button
-                        key={duration}
-                        className={
-                          triageDuration ===
-                          duration
-                            ? "selected"
-                            : ""
-                        }
-                        onClick={() => {
-                          setTriageDuration(
-                            duration
-                          );
-                          setTriageResult(null);
-                        }}
-                      >
-                        {duration}
-                      </button>
-                    ))}
+                    {["Today", "1–3 days", "4–7 days", "More than 1 week"].map(
+                      (duration) => (
+                        <button
+                          key={duration}
+                          className={triageDuration === duration ? "selected" : ""}
+                          onClick={() => {
+                            setTriageDuration(duration);
+                            setTriageResult(null);
+                          }}
+                        >
+                          {duration}
+                        </button>
+                      )
+                    )}
                   </div>
 
                   <div className="triage-age-field">
                     <label>Age group</label>
-
                     <select
                       value={triageAgeGroup}
-                      onChange={(e) =>
-                        setTriageAgeGroup(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setTriageAgeGroup(e.target.value)}
                     >
-                      <option value="">
-                        Select age group
-                      </option>
+                      <option value="">Select age group</option>
                       <option>Child</option>
                       <option>Teen</option>
                       <option>Adult</option>
                       <option>Older Adult</option>
                     </select>
                   </div>
-
                 </div>
-
               </div>
 
               <div className="dashboard-card triage-red-flag-card">
-
                 <div className="triage-card-heading">
-                  <div className="triage-number warning">
-                    04
-                  </div>
-
+                  <div className="triage-number warning">04</div>
                   <div>
                     <span>SAFETY CHECK</span>
-
-                    <h3>
-                      Do any of these warning signs apply?
-                    </h3>
-
-                    <p>
-                      Select any that apply. If none apply,
-                      leave them unchecked.
-                    </p>
+                    <h3>Do any of these warning signs apply?</h3>
+                    <p>Select any that apply. If none apply, leave them unchecked.</p>
                   </div>
                 </div>
 
                 <div className="triage-red-flags">
-
                   {redFlagOptions.map((flag) => {
-                    const selected =
-                      triageRedFlags.includes(
-                        flag.id
-                      );
-
+                    const selected = triageRedFlags.includes(flag.id);
                     return (
                       <button
                         key={flag.id}
-                        className={
-                          selected
-                            ? "triage-red-flag selected"
-                            : "triage-red-flag"
-                        }
-                        onClick={() =>
-                          toggleRedFlag(flag.id)
-                        }
+                        className={selected ? "triage-red-flag selected" : "triage-red-flag"}
+                        onClick={() => toggleRedFlag(flag.id)}
                       >
                         <span className="red-flag-checkbox">
                           {selected && "✓"}
                         </span>
-
                         {flag.label}
                       </button>
                     );
                   })}
-
                 </div>
 
                 {triageRedFlags.includes("other") && (
                   <div className="triage-other-field">
-                    <label>
-                      Describe the other warning sign
-                    </label>
-
+                    <label>Describe the other warning sign</label>
                     <textarea
                       value={triageOther}
-                      onChange={(e) =>
-                        setTriageOther(
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => setTriageOther(e.target.value)}
                       placeholder="Briefly describe what you are experiencing..."
                       rows="4"
                     />
                   </div>
                 )}
-
               </div>
 
               <div className="triage-actions">
-
-                <button
-                  className="triage-reset-button"
-                  onClick={resetTriage}
-                >
+                <button className="triage-reset-button" onClick={resetTriage}>
                   Reset
                 </button>
-
-                <button
-                  className="triage-analyze-button"
-                  onClick={analyzeTriage}
-                >
+                <button className="triage-analyze-button" onClick={analyzeTriage}>
                   ✦ Analyze Symptoms →
                 </button>
-
               </div>
 
               {triageResult && (
                 <div
                   id="triage-result"
-                  className={`triage-result-card ${
-                    triageResult.type
-                  }`}
+                  className={`triage-result-card ${triageResult.type}`}
                 >
                   <div className="triage-result-icon">
-                    {triageResult.type ===
-                    "emergency"
-                      ? "!"
-                      : triageResult.type ===
-                        "incomplete"
+                    {triageResult.type === "emergency" ||
+                    triageResult.type === "incomplete"
                       ? "!"
                       : "✓"}
                   </div>
 
                   <div>
                     <span className="triage-result-label">
-                      {triageResult.priority ||
-                        "INCOMPLETE"}
+                      {triageResult.priority || "INCOMPLETE"}
                     </span>
-
-                    <h2>
-                      {triageResult.title}
-                    </h2>
-
-                    <p>
-                      {triageResult.message}
-                    </p>
+                    <h2>{triageResult.title}</h2>
+                    <p>{triageResult.message}</p>
 
                     <div className="triage-result-action">
-                      <strong>
-                        Recommended next step
-                      </strong>
-
-                      <span>
-                        {triageResult.action}
-                      </span>
+                      <strong>Recommended next step</strong>
+                      <span>{triageResult.action}</span>
                     </div>
 
                     {triageResult.facility && (
                       <button
                         className="facility-view-button"
-                        onClick={() =>
-                          setSelectedFacility(
-                            triageResult.facility
-                          )
-                        }
+                        onClick={() => setSelectedFacility(triageResult.facility)}
                       >
                         View Suggested Facility →
                       </button>
@@ -2566,72 +2132,45 @@ function PatientDashboard() {
 
               {triageHistory.length > 0 && (
                 <div className="dashboard-card">
-
                   <div className="card-header">
                     <div>
                       <span>YOUR ACTIVITY</span>
-                      <h3>
-                        Recent triage assessments
-                      </h3>
+                      <h3>Recent triage assessments</h3>
                     </div>
                   </div>
 
                   <div className="triage-history-list">
-                    {triageHistory
-                      .slice(0, 5)
-                      .map((item) => (
-                        <div
-                          className="triage-history-item"
-                          key={item.id}
-                        >
-                          <div className="history-icon">
-                            ✚
-                          </div>
-
-                          <div className="history-main">
-                            <strong>
-                              Digital Triage
-                            </strong>
-
-                            <span>
-                              {item.symptoms
-                                .map(
-                                  (id) =>
-                                    symptomOptions.find(
-                                      (s) =>
-                                        s.id === id
-                                    )?.label || id
-                                )
-                                .join(", ")}
-                            </span>
-                          </div>
-
-                          <div
-                            className={`history-priority ${item.priority.toLowerCase()}`}
-                          >
-                            {item.priority}
-                          </div>
-
-                          <small>
-                            {item.date}
-                          </small>
+                    {triageHistory.slice(0, 5).map((item) => (
+                      <div className="triage-history-item" key={item.id}>
+                        <div className="history-icon">✚</div>
+                        <div className="history-main">
+                          <strong>Digital Triage</strong>
+                          <span>
+                            {item.symptoms
+                              .map(
+                                (id) =>
+                                  symptomOptions.find((s) => s.id === id)?.label || id
+                              )
+                              .join(", ")}
+                          </span>
                         </div>
-                      ))}
+                        <div className={`history-priority ${item.priority.toLowerCase()}`}>
+                          {item.priority}
+                        </div>
+                        <small>{item.date}</small>
+                      </div>
+                    ))}
                   </div>
-
                 </div>
               )}
-
             </section>
           )}
 
           {/* ===================================================
               APPOINTMENTS
           =================================================== */}
-
           {activeMenu === "Appointments" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="APPOINTMENT MANAGEMENT"
                 title="Appointments"
@@ -2642,24 +2181,15 @@ function PatientDashboard() {
               <div className="module-action-bar">
                 <div>
                   <strong>
-                    {appointments.filter(
-                      (a) => a.status !== "Cancelled"
-                    ).length}{" "}
+                    {appointments.filter((a) => a.status !== "Cancelled").length}{" "}
                     active appointments
                   </strong>
-
-                  <span>
-                    Keep track of your scheduled visits.
-                  </span>
+                  <span>Keep track of your scheduled visits.</span>
                 </div>
 
                 <button
                   className="primary-action"
-                  onClick={() =>
-                    setShowAppointmentForm(
-                      !showAppointmentForm
-                    )
-                  }
+                  onClick={() => setShowAppointmentForm(!showAppointmentForm)}
                 >
                   + Book Appointment
                 </button>
@@ -2667,60 +2197,38 @@ function PatientDashboard() {
 
               {showAppointmentForm && (
                 <div className="dashboard-card booking-card">
-
                   <div className="card-header">
                     <div>
                       <span>NEW APPOINTMENT</span>
-                      <h3>
-                        Book a healthcare visit
-                      </h3>
+                      <h3>Book a healthcare visit</h3>
                     </div>
                   </div>
 
                   <div className="form-grid">
-
                     <div>
                       <label>Facility</label>
-
                       <select
-                        value={
-                          appointmentForm.facility
-                        }
+                        value={appointmentForm.facility}
                         onChange={(e) =>
                           setAppointmentForm({
                             ...appointmentForm,
-                            facility:
-                              e.target.value,
+                            facility: e.target.value,
                           })
                         }
                       >
-                        <option value="">
-                          Select facility
-                        </option>
-
+                        <option value="">Select facility</option>
                         {facilities
-                          .filter(
-                            (f) =>
-                              f.category !==
-                              "Pharmacy"
-                          )
+                          .filter((f) => f.category !== "Pharmacy")
                           .map((facility) => (
-                            <option
-                              key={facility.id}
-                            >
-                              {facility.name}
-                            </option>
+                            <option key={facility.id}>{facility.name}</option>
                           ))}
                       </select>
                     </div>
 
                     <div>
                       <label>Appointment type</label>
-
                       <select
-                        value={
-                          appointmentForm.type
-                        }
+                        value={appointmentForm.type}
                         onChange={(e) =>
                           setAppointmentForm({
                             ...appointmentForm,
@@ -2728,29 +2236,18 @@ function PatientDashboard() {
                           })
                         }
                       >
-                        <option>
-                          General Consultation
-                        </option>
-                        <option>
-                          Specialist Consultation
-                        </option>
-                        <option>
-                          Health Check-up
-                        </option>
-                        <option>
-                          Follow-up Consultation
-                        </option>
+                        <option>General Consultation</option>
+                        <option>Specialist Consultation</option>
+                        <option>Health Check-up</option>
+                        <option>Follow-up Consultation</option>
                       </select>
                     </div>
 
                     <div>
                       <label>Date</label>
-
                       <input
                         type="date"
-                        value={
-                          appointmentForm.date
-                        }
+                        value={appointmentForm.date}
                         onChange={(e) =>
                           setAppointmentForm({
                             ...appointmentForm,
@@ -2762,11 +2259,8 @@ function PatientDashboard() {
 
                     <div>
                       <label>Time</label>
-
                       <select
-                        value={
-                          appointmentForm.time
-                        }
+                        value={appointmentForm.time}
                         onChange={(e) =>
                           setAppointmentForm({
                             ...appointmentForm,
@@ -2774,9 +2268,7 @@ function PatientDashboard() {
                           })
                         }
                       >
-                        <option value="">
-                          Select time
-                        </option>
+                        <option value="">Select time</option>
                         <option>09:00 AM</option>
                         <option>10:30 AM</option>
                         <option>11:30 AM</option>
@@ -2784,19 +2276,15 @@ function PatientDashboard() {
                         <option>04:00 PM</option>
                       </select>
                     </div>
-
                   </div>
 
                   <div className="form-actions">
                     <button
                       className="secondary-action"
-                      onClick={() =>
-                        setShowAppointmentForm(false)
-                      }
+                      onClick={() => setShowAppointmentForm(false)}
                     >
                       Cancel
                     </button>
-
                     <button
                       className="primary-action"
                       onClick={bookAppointment}
@@ -2804,88 +2292,55 @@ function PatientDashboard() {
                       Confirm Appointment
                     </button>
                   </div>
-
                 </div>
               )}
 
               <div className="appointment-list">
-
                 {appointments.map((appointment) => (
-                  <div
-                    className="dashboard-card appointment-list-card"
-                    key={appointment.id}
-                  >
-
+                  <div className="dashboard-card appointment-list-card" key={appointment.id}>
                     <div className="appointment-list-date">
                       <span>DATE</span>
-                      <strong>
-                        {appointment.date}
-                      </strong>
-                      <small>
-                        {appointment.time}
-                      </small>
+                      <strong>{appointment.date}</strong>
+                      <small>{appointment.time}</small>
                     </div>
 
                     <div className="appointment-list-main">
-
-                      <span className="card-kicker">
-                        {appointment.type}
-                      </span>
-
-                      <h3>
-                        {appointment.doctor}
-                      </h3>
-
+                      <span className="card-kicker">{appointment.type}</span>
+                      <h3>{appointment.doctor}</h3>
                       <p>
-                        {appointment.facility} •{" "}
-                        {appointment.location}
+                        {appointment.facility} • {appointment.location}
                       </p>
-
                     </div>
 
                     <div className="appointment-list-side">
-
                       <span
-                        className={`status-pill ${
-                          appointment.status
-                            .toLowerCase()
-                            .replace(" ", "-")
-                        }`}
+                        className={`status-pill ${appointment.status
+                          .toLowerCase()
+                          .replace(" ", "-")}`}
                       >
                         {appointment.status}
                       </span>
 
-                      {appointment.status !==
-                        "Cancelled" && (
+                      {appointment.status !== "Cancelled" && (
                         <button
                           className="danger-outline"
-                          onClick={() =>
-                            cancelAppointment(
-                              appointment.id
-                            )
-                          }
+                          onClick={() => cancelAppointment(appointment.id)}
                         >
                           Cancel
                         </button>
                       )}
-
                     </div>
-
                   </div>
                 ))}
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               REFERRALS
           =================================================== */}
-
           {activeMenu === "Referrals" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="CARE COORDINATION"
                 title="Referrals"
@@ -2894,122 +2349,57 @@ function PatientDashboard() {
               />
 
               <div className="referral-list">
-
                 {referrals.map((referral) => (
-                  <div
-                    className="dashboard-card referral-full-card"
-                    key={referral.id}
-                  >
-
+                  <div className="dashboard-card referral-full-card" key={referral.id}>
                     <div className="referral-full-top">
-
                       <div>
-                        <span className="card-kicker">
-                          REFERRAL #{referral.id}
-                        </span>
-
+                        <span className="card-kicker">REFERRAL #{referral.id}</span>
                         <h3>
-                          {referral.from}{" "}
-                          <span>→</span>{" "}
-                          {referral.to}
+                          {referral.from} <span>→</span> {referral.to}
                         </h3>
-
-                        <p>
-                          {referral.reason}
-                        </p>
+                        <p>{referral.reason}</p>
                       </div>
-
-                      <span className="status-pill in-progress">
-                        {referral.status}
-                      </span>
-
+                      <span className="status-pill in-progress">{referral.status}</span>
                     </div>
 
                     <div className="referral-large-progress">
                       <div>
                         <span>Progress</span>
-                        <strong>
-                          {referral.progress}%
-                        </strong>
+                        <strong>{referral.progress}%</strong>
                       </div>
-
                       <div className="large-progress-bar">
-                        <div
-                          style={{
-                            width: `${referral.progress}%`,
-                          }}
-                        />
+                        <div style={{ width: `${referral.progress}%` }} />
                       </div>
                     </div>
 
                     <div className="referral-timeline">
-
                       {[
-                        [
-                          "Created",
-                          true,
-                          referral.date,
-                        ],
-                        [
-                          "Accepted",
-                          referral.progress >=
-                            50,
-                          "Referral accepted",
-                        ],
-                        [
-                          "Visit",
-                          referral.progress >=
-                            75,
-                          "Visit pending/completed",
-                        ],
-                        [
-                          "Follow-up",
-                          referral.progress >=
-                            100,
-                          "Follow-up",
-                        ],
+                        ["Created", true, referral.date],
+                        ["Accepted", referral.progress >= 50, "Referral accepted"],
+                        ["Visit", referral.progress >= 75, "Visit pending/completed"],
+                        ["Follow-up", referral.progress >= 100, "Follow-up"],
                       ].map((step) => (
                         <div
-                          className={`referral-step ${
-                            step[1]
-                              ? "done"
-                              : ""
-                          }`}
+                          className={`referral-step ${step[1] ? "done" : ""}`}
                           key={step[0]}
                         >
-                          <div>
-                            {step[1]
-                              ? "✓"
-                              : ""}
-                          </div>
-
-                          <strong>
-                            {step[0]}
-                          </strong>
-
-                          <span>
-                            {step[2]}
-                          </span>
+                          <div>{step[1] ? "✓" : ""}</div>
+                          <strong>{step[0]}</strong>
+                          <span>{step[2]}</span>
                         </div>
                       ))}
-
                     </div>
-
                   </div>
                 ))}
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               MEDICINES
           =================================================== */}
-
           {activeMenu === "Medicines" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="MEDICINE ACCESS"
                 title="Medicines"
@@ -3018,60 +2408,33 @@ function PatientDashboard() {
               />
 
               <div className="medicine-search-panel">
-
                 <div className="facility-search-box">
                   <span>⌕</span>
-
                   <input
                     value={medicineSearch}
-                    onChange={(e) =>
-                      setMedicineSearch(
-                        e.target.value
-                      )
-                    }
+                    onChange={(e) => setMedicineSearch(e.target.value)}
                     placeholder="Search medicine or generic name..."
                   />
                 </div>
 
                 <div className="medicine-filters">
-                  {[
-                    "All",
-                    "In Stock",
-                    "Limited",
-                    "Out of Stock",
-                  ].map((filter) => (
+                  {["All", "In Stock", "Limited", "Out of Stock"].map((filter) => (
                     <button
                       key={filter}
-                      className={
-                        medicineFilter === filter
-                          ? "active"
-                          : ""
-                      }
-                      onClick={() =>
-                        setMedicineFilter(filter)
-                      }
+                      className={medicineFilter === filter ? "active" : ""}
+                      onClick={() => setMedicineFilter(filter)}
                     >
                       {filter}
                     </button>
                   ))}
                 </div>
-
               </div>
 
               <div className="medicine-grid">
-
                 {filteredMedicines.map((medicine) => (
-                  <div
-                    className="dashboard-card medicine-card"
-                    key={medicine.id}
-                  >
-
+                  <div className="dashboard-card medicine-card" key={medicine.id}>
                     <div className="medicine-card-top">
-
-                      <div className="medicine-icon">
-                        ▤
-                      </div>
-
+                      <div className="medicine-icon">▤</div>
                       <span
                         className={`stock-pill ${medicine.stock
                           .toLowerCase()
@@ -3079,59 +2442,40 @@ function PatientDashboard() {
                       >
                         {medicine.stock}
                       </span>
-
                     </div>
 
                     <h3>{medicine.name}</h3>
-
-                    <p>
-                      Generic: {medicine.generic}
-                    </p>
+                    <p>Generic: {medicine.generic}</p>
 
                     <div className="medicine-info">
                       <span>⌖</span>
-
                       <div>
-                        <strong>
-                          {medicine.pharmacy}
-                        </strong>
-                        <small>
-                          {medicine.location}
-                        </small>
+                        <strong>{medicine.pharmacy}</strong>
+                        <small>{medicine.location}</small>
                       </div>
                     </div>
 
                     <div className="medicine-bottom">
-                      <span>
-                        {medicine.quantity}
-                      </span>
-
+                      <span>{medicine.quantity}</span>
                       <button
                         onClick={() =>
-                          alert(
-                            `Availability checked for ${medicine.name}`
-                          )
+                          alert(`Availability checked for ${medicine.name}`)
                         }
                       >
                         Check Stock
                       </button>
                     </div>
-
                   </div>
                 ))}
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               DIAGNOSTICS
           =================================================== */}
-
           {activeMenu === "Diagnostics" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="DIAGNOSTIC COORDINATION"
                 title="Diagnostics"
@@ -3140,21 +2484,16 @@ function PatientDashboard() {
               />
 
               <div className="dashboard-card">
-
                 <div className="card-header">
                   <div>
                     <span>BOOK A TEST</span>
-                    <h3>
-                      Schedule diagnostic test
-                    </h3>
+                    <h3>Schedule diagnostic test</h3>
                   </div>
                 </div>
 
                 <div className="form-grid">
-
                   <div>
                     <label>Test</label>
-
                     <select
                       value={diagnosticForm.test}
                       onChange={(e) =>
@@ -3164,31 +2503,18 @@ function PatientDashboard() {
                         })
                       }
                     >
-                      <option value="">
-                        Select test
-                      </option>
-                      <option>
-                        Complete Blood Count
-                      </option>
-                      <option>
-                        Blood Sugar Test
-                      </option>
-                      <option>
-                        Urine Routine Test
-                      </option>
-                      <option>
-                        Lipid Profile
-                      </option>
+                      <option value="">Select test</option>
+                      <option>Complete Blood Count</option>
+                      <option>Blood Sugar Test</option>
+                      <option>Urine Routine Test</option>
+                      <option>Lipid Profile</option>
                     </select>
                   </div>
 
                   <div>
                     <label>Diagnostic centre</label>
-
                     <select
-                      value={
-                        diagnosticForm.centre
-                      }
+                      value={diagnosticForm.centre}
                       onChange={(e) =>
                         setDiagnosticForm({
                           ...diagnosticForm,
@@ -3196,28 +2522,17 @@ function PatientDashboard() {
                         })
                       }
                     >
-                      <option value="">
-                        Select centre
-                      </option>
-
-                      <option>
-                        Rural Diagnostic Centre
-                      </option>
-
-                      <option>
-                        Choubeypur Pathology Lab
-                      </option>
+                      <option value="">Select centre</option>
+                      <option>Rural Diagnostic Centre</option>
+                      <option>Choubeypur Pathology Lab</option>
                     </select>
                   </div>
 
                   <div>
                     <label>Preferred date</label>
-
                     <input
                       type="date"
-                      value={
-                        diagnosticForm.date
-                      }
+                      value={diagnosticForm.date}
                       onChange={(e) =>
                         setDiagnosticForm({
                           ...diagnosticForm,
@@ -3226,102 +2541,66 @@ function PatientDashboard() {
                       }
                     />
                   </div>
-
                 </div>
 
                 <div className="form-actions">
-                  <button
-                    className="primary-action"
-                    onClick={bookDiagnostic}
-                  >
+                  <button className="primary-action" onClick={bookDiagnostic}>
                     Book Diagnostic Test →
                   </button>
                 </div>
-
               </div>
 
               <div className="dashboard-section-header">
                 <div>
-                  <span className="section-mini-label">
-                    YOUR TESTS
-                  </span>
-
-                  <h2>
-                    Diagnostic tests & reports
-                  </h2>
+                  <span className="section-mini-label">YOUR TESTS</span>
+                  <h2>Diagnostic tests & reports</h2>
                 </div>
               </div>
 
               <div className="diagnostic-list">
-
                 {diagnosticTests.map((test) => (
-                  <div
-                    className="dashboard-card diagnostic-list-card"
-                    key={test.id}
-                  >
-
-                    <div className="diagnostic-icon-large">
-                      {test.short}
-                    </div>
+                  <div className="dashboard-card diagnostic-list-card" key={test.id}>
+                    <div className="diagnostic-icon-large">{test.short}</div>
 
                     <div className="diagnostic-main">
-
-                      <span className="card-kicker">
-                        {test.status}
-                      </span>
-
+                      <span className="card-kicker">{test.status}</span>
                       <h3>{test.name}</h3>
-
                       <p>
                         {test.centre} • {test.date}
                       </p>
-
                     </div>
 
                     <div className="diagnostic-side">
-
                       <span
                         className={`status-pill ${
-                          test.report ===
-                          "Available"
-                            ? "completed"
-                            : "pending"
+                          test.report === "Available" ? "completed" : "pending"
                         }`}
                       >
                         {test.report}
                       </span>
 
-                      {test.report ===
-                        "Available" && (
+                      {test.report === "Available" && (
                         <button
                           className="secondary-action"
                           onClick={() =>
-                            alert(
-                              `Report opened for ${test.name}`
-                            )
+                            alert(`Report opened for ${test.name}`)
                           }
                         >
                           View Report
                         </button>
                       )}
-
                     </div>
-
                   </div>
                 ))}
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               FOLLOW UP
           =================================================== */}
-
           {activeMenu === "Follow-up" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="CONTINUITY OF CARE"
                 title="Follow-up"
@@ -3330,91 +2609,47 @@ function PatientDashboard() {
               />
 
               <div className="followup-grid">
-
                 {followUps.map((followUp) => (
-                  <div
-                    className="dashboard-card followup-card"
-                    key={followUp.id}
-                  >
-
+                  <div className="dashboard-card followup-card" key={followUp.id}>
                     <div className="followup-top">
-                      <div className="followup-icon">
-                        ♥
-                      </div>
-
-                      <span className="status-pill upcoming">
-                        {followUp.status}
-                      </span>
+                      <div className="followup-icon">♥</div>
+                      <span className="status-pill upcoming">{followUp.status}</span>
                     </div>
 
-                    <span className="card-kicker">
-                      FOLLOW-UP
-                    </span>
-
+                    <span className="card-kicker">FOLLOW-UP</span>
                     <h3>{followUp.title}</h3>
-
-                    <p>
-                      {followUp.doctor}
-                    </p>
+                    <p>{followUp.doctor}</p>
 
                     <div className="followup-info">
-                      <span>
-                        ▣ {followUp.date}
-                      </span>
-
-                      <span>
-                        ◷ {followUp.time}
-                      </span>
-
-                      <span>
-                        ⌖ {followUp.facility}
-                      </span>
+                      <span>▣ {followUp.date}</span>
+                      <span>◷ {followUp.time}</span>
+                      <span>⌖ {followUp.facility}</span>
                     </div>
 
                     <div className="reminder-row">
-
                       <div>
-                        <strong>
-                          Reminder
-                        </strong>
-
-                        <span>
-                          Get a reminder for this visit
-                        </span>
+                        <strong>Reminder</strong>
+                        <span>Get a reminder for this visit</span>
                       </div>
 
                       <button
-                        className={`toggle-switch ${
-                          followUp.reminder
-                            ? "on"
-                            : ""
-                        }`}
-                        onClick={() =>
-                          toggleReminder(
-                            followUp.id
-                          )
-                        }
+                        className={`toggle-switch ${followUp.reminder ? "on" : ""}`}
+                        onClick={() => toggleReminder(followUp.id)}
                       >
                         <span />
                       </button>
-
                     </div>
-
                   </div>
                 ))}
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               CARE JOURNEY
           =================================================== */}
-
           {activeMenu === "Care Journey" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="COMPLETE CARE VIEW"
                 title="Care Journey"
@@ -3423,46 +2658,34 @@ function PatientDashboard() {
               />
 
               <div className="journey-summary-grid">
-
                 <div className="journey-summary-card">
                   <span>STARTED</span>
                   <strong>Aug 25</strong>
-                  <small>
-                    Initial consultation
-                  </small>
+                  <small>Initial consultation</small>
                 </div>
 
                 <div className="journey-summary-card">
                   <span>CURRENT STEP</span>
                   <strong>Diagnostics</strong>
-                  <small>
-                    Completion pending
-                  </small>
+                  <small>Completion pending</small>
                 </div>
 
                 <div className="journey-summary-card">
                   <span>NEXT STEP</span>
                   <strong>Follow-up</strong>
-                  <small>
-                    Sep 04, 2026
-                  </small>
+                  <small>Sep 04, 2026</small>
                 </div>
-
               </div>
 
               <div className="dashboard-card full-journey-card">
-
                 <div className="card-header">
                   <div>
                     <span>YOUR CARE PATH</span>
-                    <h3>
-                      Healthcare journey timeline
-                    </h3>
+                    <h3>Healthcare journey timeline</h3>
                   </div>
                 </div>
 
                 <div className="full-journey-timeline">
-
                   {[
                     [
                       "completed",
@@ -3505,66 +2728,37 @@ function PatientDashboard() {
                       "Scheduled after diagnostic",
                     ],
                   ].map((item) => (
-                    <div
-                      className={`full-journey-item ${item[0]}`}
-                      key={item[2]}
-                    >
-
-                      <div className="journey-marker">
-                        {item[1]}
-                      </div>
-
+                    <div className={`full-journey-item ${item[0]}`} key={item[2]}>
+                      <div className="journey-marker">{item[1]}</div>
                       <div className="journey-line-content">
-
                         <div className="journey-item-top">
                           <div>
-                            <span>
-                              {item[4]}
-                            </span>
-
-                            <h3>
-                              {item[2]}
-                            </h3>
+                            <span>{item[4]}</span>
+                            <h3>{item[2]}</h3>
                           </div>
-
                           <span className="journey-status">
-                            {item[0] ===
-                            "completed"
+                            {item[0] === "completed"
                               ? "Completed"
-                              : item[0] ===
-                                "current"
+                              : item[0] === "current"
                               ? "Current"
                               : "Upcoming"}
                           </span>
                         </div>
-
-                        <p>
-                          {item[3]}
-                        </p>
-
-                        <small>
-                          {item[5]}
-                        </small>
-
+                        <p>{item[3]}</p>
+                        <small>{item[5]}</small>
                       </div>
-
                     </div>
                   ))}
-
                 </div>
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               MY PROFILE
           =================================================== */}
-
           {activeMenu === "My Profile" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="PATIENT ACCOUNT"
                 title="My Profile"
@@ -3573,16 +2767,11 @@ function PatientDashboard() {
               />
 
               <div className="profile-page-grid">
-
                 <div className="dashboard-card profile-main-card">
-
                   <div className="profile-avatar-upload">
                     <div className="profile-big-avatar">
                       {profile.profilePicture ? (
-                        <img
-                          src={profile.profilePicture}
-                          alt="Profile"
-                        />
+                        <img src={profile.profilePicture} alt="Profile" />
                       ) : (
                         (profile.name || "Patient")
                           .trim()
@@ -3611,114 +2800,142 @@ function PatientDashboard() {
                   </div>
 
                   <h2>{profile.name}</h2>
+                  <span>Patient Account</span>
 
-                  <span>
-                    Patient Account
-                  </span>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "14px", width: "100%", justifyContent: "center", flexWrap: "wrap" }}>
+                    <button
+                      className="primary-action"
+                      onClick={() => setEditProfile(!editProfile)}
+                    >
+                      {editProfile ? "Close Edit" : "Edit Profile"}
+                    </button>
 
-                  <button
-                    className="primary-action"
-                    onClick={() =>
-                      setEditProfile(!editProfile)
-                    }
-                  >
-                    {editProfile
-                      ? "Close Edit"
-                      : "Edit Profile"}
-                  </button>
-
+                    <button
+                      className="secondary-action"
+                      onClick={() => setShowPasswordModal(true)}
+                    >
+                      🔑 Change Password
+                    </button>
+                  </div>
                 </div>
 
                 <div className="dashboard-card profile-details-card">
-
                   <div className="card-header">
                     <div>
                       <span>PERSONAL DETAILS</span>
-                      <h3>
-                        Profile information
-                      </h3>
+                      <h3>Profile information</h3>
                     </div>
                   </div>
 
                   <div className="profile-fields">
-
                     {[
                       ["name", "Full Name"],
                       ["age", "Age"],
                       ["phone", "Phone"],
                       ["email", "Email"],
                       ["location", "Location"],
-                      [
-                        "emergencyContact",
-                        "Emergency Contact",
-                      ],
+                      ["emergencyContact", "Emergency Contact"],
                     ].map(([key, label]) => (
                       <div key={key}>
                         <label>{label}</label>
-
                         {editProfile ? (
                           <input
                             value={profile[key]}
                             onChange={(e) =>
                               setProfile({
                                 ...profile,
-                                [key]:
-                                  e.target.value,
+                                [key]: e.target.value,
                               })
                             }
                           />
                         ) : (
-                          <strong>
-                            {profile[key]}
-                          </strong>
+                          <strong>{profile[key]}</strong>
                         )}
                       </div>
                     ))}
 
+                    {/* Password Field Row in Profile */}
+                    <div>
+                      <label>Secret Password</label>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <strong>••••••••</strong>
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswordModal(true)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "var(--primary, #08746e)",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            padding: 0,
+                          }}
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {editProfile && (
                     <button
                       className="primary-action"
-                      onClick={() =>
-                        setEditProfile(false)
-                      }
+                      style={{ marginTop: "16px" }}
+                      onClick={() => setEditProfile(false)}
                     >
                       Save Changes
                     </button>
                   )}
-
                 </div>
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               SETTINGS
           =================================================== */}
-
           {activeMenu === "Settings" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="ACCOUNT SETTINGS"
                 title="Settings"
-                description="Manage notifications and portal preferences."
+                description="Manage notifications, security and portal preferences."
                 icon="⚙"
               />
 
               <div className="settings-list">
+                {/* Security Settings Section */}
+                <div className="dashboard-card settings-card">
+                  <div className="card-header">
+                    <div>
+                      <span>SECURITY</span>
+                      <h3>Password & Access</h3>
+                    </div>
+                  </div>
+
+                  <div className="setting-row">
+                    <div>
+                      <strong>Account Password</strong>
+                      <span>Manage your portal login security.</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => setShowPasswordModal(true)}
+                    >
+                      🔑 Change Password
+                    </button>
+                  </div>
+                </div>
 
                 <div className="dashboard-card settings-card">
-
                   <div className="card-header">
                     <div>
                       <span>NOTIFICATIONS</span>
-                      <h3>
-                        Notification preferences
-                      </h3>
+                      <h3>Notification preferences</h3>
                     </div>
                   </div>
 
@@ -3739,31 +2956,20 @@ function PatientDashboard() {
                       "Receive updates related to medicine availability.",
                     ],
                   ].map((item) => (
-                    <div
-                      className="setting-row"
-                      key={item[0]}
-                    >
+                    <div className="setting-row" key={item[0]}>
                       <div>
-                        <strong>
-                          {item[1]}
-                        </strong>
-
-                        <span>
-                          {item[2]}
-                        </span>
+                        <strong>{item[1]}</strong>
+                        <span>{item[2]}</span>
                       </div>
 
                       <button
                         className={`toggle-switch ${
-                          settings[item[0]]
-                            ? "on"
-                            : ""
+                          settings[item[0]] ? "on" : ""
                         }`}
                         onClick={() =>
                           setSettings({
                             ...settings,
-                            [item[0]]:
-                              !settings[item[0]],
+                            [item[0]]: !settings[item[0]],
                           })
                         }
                       >
@@ -3771,32 +2977,24 @@ function PatientDashboard() {
                       </button>
                     </div>
                   ))}
-
                 </div>
 
                 <div className="dashboard-card settings-card">
-
                   <div className="card-header">
                     <div>
                       <span>LANGUAGE</span>
-                      <h3>
-                        Portal language
-                      </h3>
+                      <h3>Portal language</h3>
                     </div>
                   </div>
 
                   <div className="setting-language">
-                    <label>
-                      Preferred language
-                    </label>
-
+                    <label>Preferred language</label>
                     <select
                       value={settings.language}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
-                          language:
-                            e.target.value,
+                          language: e.target.value,
                         })
                       }
                     >
@@ -3805,21 +3003,16 @@ function PatientDashboard() {
                       <option>Hinglish</option>
                     </select>
                   </div>
-
                 </div>
-
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               NOTIFICATIONS
           =================================================== */}
-
           {activeMenu === "Notifications" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="UPDATES & ALERTS"
                 title="Notifications"
@@ -3828,96 +3021,58 @@ function PatientDashboard() {
               />
 
               <div className="notification-toolbar">
-
-                <strong>
-                  {unreadCount} unread
-                </strong>
+                <strong>{unreadCount} unread</strong>
 
                 {unreadCount > 0 && (
                   <button
                     className="secondary-action"
-                    onClick={
-                      markAllNotificationsRead
-                    }
+                    onClick={markAllNotificationsRead}
                   >
                     Mark all as read
                   </button>
                 )}
-
               </div>
 
               <div className="notification-list">
-
-                {notifications.map(
-                  (notification) => (
-                    <div
-                      className={`dashboard-card notification-card ${
-                        notification.read
-                          ? "read"
-                          : "unread"
-                      }`}
-                      key={notification.id}
-                      onClick={() =>
-                        markNotificationRead(
-                          notification.id
-                        )
-                      }
-                    >
-
-                      <div className="notification-icon">
-                        {notification.type ===
-                        "appointment"
-                          ? "▣"
-                          : notification.type ===
-                            "referral"
-                          ? "↗"
-                          : "♥"}
-                      </div>
-
-                      <div className="notification-main">
-
-                        <div>
-                          <h3>
-                            {notification.title}
-                          </h3>
-
-                          {!notification.read && (
-                            <span className="unread-dot" />
-                          )}
-                        </div>
-
-                        <p>
-                          {notification.message}
-                        </p>
-
-                        <small>
-                          {notification.time}
-                        </small>
-
-                      </div>
-
-                      {!notification.read && (
-                        <span className="new-label">
-                          NEW
-                        </span>
-                      )}
-
+                {notifications.map((notification) => (
+                  <div
+                    className={`dashboard-card notification-card ${
+                      notification.read ? "read" : "unread"
+                    }`}
+                    key={notification.id}
+                    onClick={() => markNotificationRead(notification.id)}
+                  >
+                    <div className="notification-icon">
+                      {notification.type === "appointment"
+                        ? "▣"
+                        : notification.type === "referral"
+                        ? "↗"
+                        : "♥"}
                     </div>
-                  )
-                )}
 
+                    <div className="notification-main">
+                      <div>
+                        <h3>{notification.title}</h3>
+                        {!notification.read && <span className="unread-dot" />}
+                      </div>
+                      <p>{notification.message}</p>
+                      <small>{notification.time}</small>
+                    </div>
+
+                    {!notification.read && (
+                      <span className="new-label">NEW</span>
+                    )}
+                  </div>
+                ))}
               </div>
-
             </section>
           )}
 
           {/* ===================================================
               FALLBACK HELP
           =================================================== */}
-
           {activeMenu === "Help & Support" && (
             <section className="module-page">
-
               <PageHeader
                 eyebrow="SUPPORT"
                 title="Help & Support"
@@ -3926,166 +3081,182 @@ function PatientDashboard() {
               />
 
               <div className="support-grid">
-
                 <div className="dashboard-card">
-                  <div className="support-icon">
-                    ?
-                  </div>
-
-                  <h3>
-                    Need help?
-                  </h3>
-
+                  <div className="support-icon">?</div>
+                  <h3>Need help?</h3>
                   <p>
-                    Contact your participating healthcare
-                    facility for appointment or care-related
-                    assistance.
+                    Contact your participating healthcare facility for appointment or care-related assistance.
                   </p>
-
                   <button
                     className="primary-action"
                     onClick={() =>
-                      alert(
-                        "Support request feature is ready to connect with your backend."
-                      )
+                      alert("Support request feature is ready to connect with your backend.")
                     }
                   >
                     Contact Support
                   </button>
                 </div>
-
               </div>
-
             </section>
           )}
-
         </main>
       </div>
 
       {/* =======================================================
-          FACILITY MODAL
+          CHANGE PASSWORD MODAL
       ======================================================= */}
-
-      {selectedFacility && (
+      {showPasswordModal && (
         <div
           className="facility-modal-overlay"
-          onClick={() =>
-            setSelectedFacility(null)
-          }
+          onClick={() => setShowPasswordModal(false)}
         >
           <div
             className="facility-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            style={{ maxWidth: "440px" }}
+            onClick={(e) => e.stopPropagation()}
           >
-
             <div className="facility-modal-header">
-
-              <div className="facility-modal-icon">
-                {selectedFacility.icon}
-              </div>
-
+              <div className="facility-modal-icon">🔑</div>
               <button
                 className="facility-modal-close"
-                onClick={() =>
-                  setSelectedFacility(null)
-                }
+                onClick={() => setShowPasswordModal(false)}
               >
                 ×
               </button>
-
             </div>
 
             <div className="facility-modal-content">
+              <h2>Change Password</h2>
+              <p style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "16px" }}>
+                Update your login password for your patient portal account.
+              </p>
 
+              <form onSubmit={handleUpdatePassword}>
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px" }}>
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter at least 6 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: "100%",
+                      height: "42px",
+                      padding: "0 12px",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border)",
+                      background: "var(--surface)",
+                      fontSize: "14px",
+                    }}
+                  />
+                </div>
+
+                <div className="facility-modal-footer" style={{ padding: 0 }}>
+                  <button
+                    type="button"
+                    className="facility-modal-secondary"
+                    onClick={() => setShowPasswordModal(false)}
+                  >
+                    Cancel
+                  </button>
+
+                  <button type="submit" className="facility-modal-primary">
+                    Update Password
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =======================================================
+          FACILITY MODAL
+      ======================================================= */}
+      {selectedFacility && (
+        <div
+          className="facility-modal-overlay"
+          onClick={() => setSelectedFacility(null)}
+        >
+          <div
+            className="facility-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="facility-modal-header">
+              <div className="facility-modal-icon">
+                {selectedFacility.icon || "✚"}
+              </div>
+              <button
+                className="facility-modal-close"
+                onClick={() => setSelectedFacility(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="facility-modal-content">
               <span className="facility-modal-status">
-                ● {selectedFacility.status}
+                ● {selectedFacility.status || "Open"}
               </span>
-
-              <h2>
-                {selectedFacility.name}
-              </h2>
-
+              <h2>{selectedFacility.name}</h2>
               <p className="facility-modal-type">
-                {selectedFacility.type} •{" "}
-                {selectedFacility.specialty}
+                {selectedFacility.type} • {selectedFacility.specialty || "Primary Care"}
               </p>
 
               <div className="facility-modal-info">
-
                 <div>
                   <span>⌖</span>
-
                   <div>
                     <small>LOCATION</small>
-                    <strong>
-                      {selectedFacility.location}
-                    </strong>
+                    <strong>{selectedFacility.location}</strong>
                   </div>
                 </div>
 
                 <div>
                   <span>◷</span>
-
                   <div>
                     <small>OPENING HOURS</small>
-                    <strong>
-                      {selectedFacility.hours}
-                    </strong>
+                    <strong>{selectedFacility.hours || "24 Hours"}</strong>
                   </div>
                 </div>
 
                 <div>
                   <span>☎</span>
-
                   <div>
                     <small>CONTACT</small>
-                    <strong>
-                      {selectedFacility.phone}
-                    </strong>
+                    <strong>{selectedFacility.phone || "+91 98765 43210"}</strong>
                   </div>
                 </div>
-
               </div>
 
               <div className="facility-modal-description">
-                <h3>
-                  About this facility
-                </h3>
-
+                <h3>About this facility</h3>
                 <p>
-                  {selectedFacility.description}
+                  {selectedFacility.description ||
+                    "Essential public healthcare facility serving local community needs."}
                 </p>
               </div>
 
-              <div className="facility-modal-services">
-
-                <h3>
-                  Available services
-                </h3>
-
-                <div>
-                  {selectedFacility.services.map(
-                    (service) => (
-                      <span key={service}>
-                        ✓ {service}
-                      </span>
-                    )
-                  )}
+              {selectedFacility.services && (
+                <div className="facility-modal-services">
+                  <h3>Available services</h3>
+                  <div>
+                    {selectedFacility.services.map((service) => (
+                      <span key={service}>✓ {service}</span>
+                    ))}
+                  </div>
                 </div>
-
-              </div>
-
+              )}
             </div>
 
             <div className="facility-modal-footer">
-
               <button
                 className="facility-modal-secondary"
-                onClick={() =>
-                  setSelectedFacility(null)
-                }
+                onClick={() => setSelectedFacility(null)}
               >
                 Close
               </button>
@@ -4093,25 +3264,22 @@ function PatientDashboard() {
               <button
                 className="facility-modal-primary"
                 onClick={() => {
+                  const targetFacilityName = selectedFacility.name;
                   setSelectedFacility(null);
                   handleMenuClick("Appointments");
                   setShowAppointmentForm(true);
                   setAppointmentForm((current) => ({
                     ...current,
-                    facility:
-                      selectedFacility.name,
+                    facility: targetFacilityName,
                   }));
                 }}
               >
                 Book / Continue →
               </button>
-
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

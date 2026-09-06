@@ -15,7 +15,7 @@ function RoleSelection() {
       color: "blue",
     },
     {
-      id: "health-worker",
+      id: "worker", // Aligned with App.jsx / ProtectedRoute ("worker")
       icon: "🩺",
       title: "Health Worker",
       description:
@@ -42,6 +42,13 @@ function RoleSelection() {
 
   const handleContinue = () => {
     if (!selectedRole) return;
+
+    // Persist under the standardized keys used by App.jsx
+    localStorage.setItem("swasthya_role", selectedRole);
+    localStorage.setItem("userRole", selectedRole);
+
+    // Notify App.jsx listener immediately
+    window.dispatchEvent(new Event("swasthya_role_updated"));
 
     navigate(`/login?role=${selectedRole}`);
   };

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import api from "../api/axiosClient.js";
 import "./Registration.css";
 
 function Registration() {
@@ -11,7 +12,9 @@ function Registration() {
   ========================================================= */
 
   const params = new URLSearchParams(location.search);
-  const role = params.get("role");
+  const rawRole = params.get("role");
+  // Normalize "health-worker" or "worker" to standard key
+  const role = rawRole === "worker" ? "health-worker" : rawRole;
 
   /* =========================================================
      ROLE NAMES
@@ -283,11 +286,12 @@ function Registration() {
     return "";
   };
 
-  /* =========================================================
+
+/* =========================================================
      SUBMIT
   ========================================================= */
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     setError("");
@@ -302,203 +306,132 @@ function Registration() {
 
     setSubmitting(true);
 
-    const cleanPhone =
-      form.phone.replace(/\D/g, "");
+    const cleanPhone = form.phone.replace(/\D/g, "");
 
-    const registration = {
-      id: Date.now(),
-
-      role,
-
+    const payload = {
+      role: role === "health-worker" ? "worker" : role,
       name: form.name.trim(),
-
       email: form.email.trim().toLowerCase(),
-
       phone: cleanPhone,
-
-      /*
-        Frontend demo only.
-        Real project mein password backend par hash hona chahiye.
-      */
       password: form.password,
 
-      /* Patient */
+      // Role-specific payload details
       dob: form.dob,
       gender: form.gender,
       address: form.address.trim(),
 
-      /* Doctor */
-      medicalRegistrationNo:
-        form.medicalRegistrationNo.trim(),
+      medicalRegistrationNo: form.medicalRegistrationNo.trim(),
+      specialization: form.specialization.trim(),
+      qualification: form.qualification.trim(),
+      experience: form.experience.trim(),
+      facility: form.facility.trim(),
 
-      specialization:
-        form.specialization.trim(),
+      workerId: form.workerId.trim(),
+      workerQualification: form.workerQualification.trim(),
+      workerExperience: form.workerExperience.trim(),
 
-      qualification:
-        form.qualification.trim(),
+      department: form.department.trim(),
+      adminCode: form.adminCode.trim(),
 
-      experience:
-        form.experience.trim(),
-
-      facility:
-        form.facility.trim(),
-
-      /* Health Worker */
-      workerId:
-        form.workerId.trim(),
-
-      workerQualification:
-        form.workerQualification.trim(),
-
-      workerExperience:
-        form.workerExperience.trim(),
-
-      /* Admin */
-      department:
-        form.department.trim(),
-
-      adminCode:
-        form.adminCode.trim(),
-
-      /* Registration Status */
-      status:
-        role === "patient"
-          ? "Active"
-          : "Pending",
-
-      registeredAt:
-        new Date().toISOString(),
+      status: role === "patient" ? "Active" : "Pending",
+      registeredAt: new Date().toISOString(),
     };
 
+    let registrationSuccessful = false;
+
     try {
-      const savedData =
-        localStorage.getItem(
-          "swasthyasetu_registrations"
-        );
+      // 1. Try Backend Registration
+      const response = await api.post("/auth/register", payload);
+      const { token, user } = response.data || {};
 
-      const existingRegistrations =
-        savedData
-          ? JSON.parse(savedData)
-          : [];
+      if (token) {
+        localStorage.setItem("token", token);
+        localStorage.setItem("userRole", user?.role || payload.role);
+        localStorage.setItem("userName", user?.name || payload.name);
+      }
+      registrationSuccessful = true;
+    } catch (apiError) {
+      // 2. Fallback to LocalStorage for offline/demo operation & Mock Store sync
+      const savedData = localStorage.getItem("swasthyasetu_registrations");
+      const existingRegistrations = savedData ? JSON.parse(savedData) : [];
 
-      /* =====================================================
-         DUPLICATE CHECK
-      ===================================================== */
-
-      const duplicate =
-        existingRegistrations.find(
-          (item) =>
-            item.email?.toLowerCase() ===
-              registration.email ||
-            item.phone ===
-              registration.phone
-        );
+      const duplicate = existingRegistrations.find(
+        (item) =>
+          item.email?.toLowerCase() === payload.email ||
+          item.phone === payload.phone
+      );
 
       if (duplicate) {
         setSubmitting(false);
-
-        setError(
-          "An account with this email or mobile number already exists."
-        );
-
+        setError("An account with this email or mobile number already exists.");
         return;
       }
 
-      /* =====================================================
-         SAVE REGISTRATION
-      ===================================================== */
-
-      const updatedRegistrations = [
-        ...existingRegistrations,
-        registration,
-      ];
-
+      const newRegistration = { ...payload, id: Date.now() };
+      existingRegistrations.push(newRegistration);
       localStorage.setItem(
         "swasthyasetu_registrations",
-        JSON.stringify(
-          updatedRegistrations
-        )
+        JSON.stringify(existingRegistrations)
       );
 
-      /* =====================================================
-         PATIENT
-      ===================================================== */
-
-      if (role === "patient") {
-        localStorage.setItem(
-          "swasthyasetu_logged_in_user",
-          JSON.stringify(registration)
+      // Sync into offline mock users so login immediately recognizes credentials
+      try {
+        const mockUsersStorage = localStorage.getItem("swasthya_mock_users");
+        let mockUsersList = mockUsersStorage ? JSON.parse(mockUsersStorage) : [];
+        
+        // Check if already in mock users
+        const mockDuplicate = mockUsersList.find(
+          (u) => u.email.toLowerCase() === payload.email
         );
-
-        setSubmitting(false);
-
-        setSuccess(
-          "Registration successful. Redirecting to your dashboard..."
-        );
-
-        setTimeout(() => {
-          navigate("/patient/dashboard");
-        }, 1000);
-
-        return;
+        if (!mockDuplicate) {
+          mockUsersList.push({
+            email: payload.email,
+            phone: payload.phone,
+            password: payload.password,
+            role: payload.role,
+            name: payload.name,
+          });
+          localStorage.setItem("swasthya_mock_users", JSON.stringify(mockUsersList));
+        }
+      } catch (mockErr) {
+        console.warn("Failed syncing new registration to mock users storage", mockErr);
       }
 
-      /* =====================================================
-         DOCTOR
-      ===================================================== */
-
-      if (role === "doctor") {
-        setSubmitting(false);
-
-        setSuccess(
-          "Registration submitted successfully. Your doctor account is pending admin approval."
-        );
-
-        resetForm();
-
-        return;
-      }
-
-      /* =====================================================
-         HEALTH WORKER
-      ===================================================== */
-
-      if (role === "health-worker") {
-        setSubmitting(false);
-
-        setSuccess(
-          "Registration submitted successfully. Your health worker account is pending admin approval."
-        );
-
-        resetForm();
-
-        return;
-      }
-
-      /* =====================================================
-         ADMIN
-      ===================================================== */
-
-      if (role === "admin") {
-        setSubmitting(false);
-
-        setSuccess(
-          "Administrator registration submitted successfully. Your account requires authorized approval."
-        );
-
-        resetForm();
-      }
-    } catch (storageError) {
-      console.error(
-        "Registration storage error:",
-        storageError
-      );
-
+      registrationSuccessful = true;
+    } finally {
       setSubmitting(false);
+    }
 
-      setError(
-        "Unable to save registration details. Please try again."
-      );
+    if (!registrationSuccessful) return;
+
+    // Role-based post-registration feedback & routing
+    if (role === "patient") {
+      setSuccess("Registration successful. Redirecting to your dashboard...");
+      // Save minimal active session info for immediate dashboard load
+      localStorage.setItem("swasthya_user", JSON.stringify(payload));
+      localStorage.setItem("swasthya_role", "patient");
+      localStorage.setItem("userName", payload.name);
+      setTimeout(() => {
+        navigate("/patient/dashboard");
+      }, 1000);
+      return;
+    }
+
+    if (role === "doctor") {
+      setSuccess("Registration submitted successfully. Your doctor account is pending admin approval.");
+      resetForm();
+      return;
+    }
+
+    if (role === "health-worker") {
+      setSuccess("Registration submitted successfully. Your health worker account is pending admin approval.");
+      resetForm();
+      return;
+    }
+
+    if (role === "admin") {
+      setSuccess("Administrator registration submitted successfully. Your account requires authorized approval.");
+      resetForm();
     }
   };
 
@@ -1340,7 +1273,7 @@ function FormSelect({
 }
 
 /* =========================================================
-   PASSWORD
+   Password
 ========================================================= */
 
 function PasswordInput({

@@ -1,5 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../../api/axiosClient.js";
+import FacilityMap from "../../components/FacilityMap.jsx";
 import "./AdminDashboard.css";
 
 function AdminDashboard() {
@@ -18,15 +20,19 @@ function AdminDashboard() {
   const [selectedReferral, setSelectedReferral] = useState(null);
 
   const [showUserDetails, setShowUserDetails] = useState(false);
-  const [showFacilityDetails, setShowFacilityDetails] =
-    useState(false);
-  const [showReferralDetails, setShowReferralDetails] =
-    useState(false);
+  const [showFacilityDetails, setShowFacilityDetails] = useState(false);
+  const [showReferralDetails, setShowReferralDetails] = useState(false);
+
+  // Facility View Toggle: 'grid' | 'map'
+  const [facilityViewMode, setFacilityViewMode] = useState("grid");
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPasswordInput, setNewPasswordInput] = useState("");
 
   const [toast, setToast] = useState("");
 
   // =========================================================
-  // ADMIN PROFILE
+  // ADMIN PROFILE (WITH PHONE & PASSWORD)
   // =========================================================
 
   const fileInputRef = useRef(null);
@@ -38,7 +44,8 @@ function AdminDashboard() {
     organization: "SwasthyaSetu",
     accessLevel: "Full Network Access",
     email: "admin@swasthyasetu.in",
-    phone: "+91 98XXXXXX00",
+    phone: "9876543210",
+    password: "password123",
     image: "",
   });
 
@@ -51,11 +58,77 @@ function AdminDashboard() {
     organization: "SwasthyaSetu",
     accessLevel: "Full Network Access",
     email: "admin@swasthyasetu.in",
-    phone: "+91 98XXXXXX00",
+    phone: "9876543210",
+    password: "password123",
   });
 
+  // Load real registrations & sync local/backend users
+  useEffect(() => {
+    const savedUser = localStorage.getItem("swasthya_user");
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        setAdminProfile((prev) => ({
+          ...prev,
+          name: parsed.name || prev.name,
+          email: parsed.email || prev.email,
+          phone: parsed.phone || prev.phone,
+          password: parsed.password || prev.password,
+        }));
+      } catch (err) {
+        console.warn("Failed parsing saved admin user", err);
+      }
+    }
+
+    const fetchUsers = async () => {
+      try {
+        const response = await api.get("/admin/users");
+        if (response.data?.users) {
+          setUsers(response.data.users);
+          return;
+        }
+      } catch (err) {
+        const saved = localStorage.getItem("swasthyasetu_registrations");
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const mapped = parsed.map((item) => ({
+              id: item.id || Date.now(),
+              name: item.name,
+              role:
+                item.role === "doctor"
+                  ? "Doctor"
+                  : item.role === "health-worker" || item.role === "worker"
+                  ? "Health Worker"
+                  : "Patient",
+              phone: item.phone,
+              email: item.email,
+              facility: item.facility || "Primary Health Centre",
+              status: item.status || "Pending",
+              joined: new Date(item.registeredAt || Date.now()).toLocaleDateString("en-GB", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              }),
+            }));
+
+            setUsers((prev) => {
+              const existingEmails = new Set(prev.map((u) => u.email));
+              const newItems = mapped.filter((m) => !existingEmails.has(m.email));
+              return [...newItems, ...prev];
+            });
+          } catch (e) {
+            console.error("Failed to parse local registrations", e);
+          }
+        }
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
   // =========================================================
-  // USERS
+  // USERS MOCK STORE
   // =========================================================
 
   const [users, setUsers] = useState([
@@ -63,7 +136,7 @@ function AdminDashboard() {
       id: 1,
       name: "Dr. Sharma",
       role: "Doctor",
-      phone: "98XXXXXX21",
+      phone: "9876543203",
       email: "dr.sharma@swasthyasetu.in",
       facility: "SwasthyaSetu Community Health Centre",
       status: "Approved",
@@ -73,7 +146,7 @@ function AdminDashboard() {
       id: 2,
       name: "Dr. Priya Singh",
       role: "Doctor",
-      phone: "97XXXXXX42",
+      phone: "9765432104",
       email: "priya.singh@swasthyasetu.in",
       facility: "District Hospital",
       status: "Pending",
@@ -83,7 +156,7 @@ function AdminDashboard() {
       id: 3,
       name: "Ravi Kumar",
       role: "Health Worker",
-      phone: "96XXXXXX18",
+      phone: "9876543210",
       email: "ravi.worker@swasthyasetu.in",
       facility: "PHC Choubeypur",
       status: "Approved",
@@ -93,7 +166,7 @@ function AdminDashboard() {
       id: 4,
       name: "Sunita Devi",
       role: "Patient",
-      phone: "95XXXXXX73",
+      phone: "9543210987",
       email: "sunita.patient@gmail.com",
       facility: "CHC Choubeypur",
       status: "Active",
@@ -103,7 +176,7 @@ function AdminDashboard() {
       id: 5,
       name: "Amit Singh",
       role: "Patient",
-      phone: "94XXXXXX64",
+      phone: "9432109876",
       email: "amit.singh@gmail.com",
       facility: "PHC Choubeypur",
       status: "Active",
@@ -113,7 +186,7 @@ function AdminDashboard() {
       id: 6,
       name: "Neha Verma",
       role: "Health Worker",
-      phone: "93XXXXXX55",
+      phone: "9321098765",
       email: "neha.worker@swasthyasetu.in",
       facility: "PHC Harhua",
       status: "Pending",
@@ -131,7 +204,7 @@ function AdminDashboard() {
       name: "SwasthyaSetu Community Health Centre",
       type: "CHC",
       location: "Choubeypur, Varanasi",
-      contact: "0542-XXXXXXX",
+      contact: "0542-2612001",
       doctors: 8,
       workers: 14,
       patients: 1260,
@@ -143,7 +216,7 @@ function AdminDashboard() {
       name: "District Hospital Varanasi",
       type: "Hospital",
       location: "Varanasi",
-      contact: "0542-XXXXXXX",
+      contact: "0542-2508001",
       doctors: 32,
       workers: 48,
       patients: 4820,
@@ -155,7 +228,7 @@ function AdminDashboard() {
       name: "PHC Choubeypur",
       type: "PHC",
       location: "Choubeypur, Varanasi",
-      contact: "0542-XXXXXXX",
+      contact: "0542-2612004",
       doctors: 4,
       workers: 9,
       patients: 840,
@@ -167,7 +240,7 @@ function AdminDashboard() {
       name: "Diagnostic Centre Harhua",
       type: "Diagnostics",
       location: "Harhua, Varanasi",
-      contact: "0542-XXXXXXX",
+      contact: "0542-2622010",
       doctors: 2,
       workers: 7,
       patients: 530,
@@ -179,7 +252,7 @@ function AdminDashboard() {
       name: "Jan Aushadhi Pharmacy",
       type: "Pharmacy",
       location: "Choubeypur, Varanasi",
-      contact: "0542-XXXXXXX",
+      contact: "0542-2612009",
       doctors: 0,
       workers: 5,
       patients: 740,
@@ -310,20 +383,15 @@ function AdminDashboard() {
   ]);
 
   // =========================================================
-  // TOAST
+  // TOAST & MENU NAVIGATION
   // =========================================================
 
   const showToast = (message) => {
     setToast(message);
-
     setTimeout(() => {
       setToast("");
     }, 2500);
   };
-
-  // =========================================================
-  // MENU
-  // =========================================================
 
   const handleMenu = (menu) => {
     if (menu === activeMenu) {
@@ -361,27 +429,22 @@ function AdminDashboard() {
       setShowUserDetails(false);
       return;
     }
-
     if (showFacilityDetails) {
       setShowFacilityDetails(false);
       return;
     }
-
     if (showReferralDetails) {
       setShowReferralDetails(false);
       return;
     }
-
     if (editProfile) {
       setEditProfile(false);
       return;
     }
-
     if (notificationOpen) {
       setNotificationOpen(false);
       return;
     }
-
     if (showProfile) {
       setShowProfile(false);
       return;
@@ -424,34 +487,70 @@ function AdminDashboard() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("swasthya_role");
+    localStorage.removeItem("swasthya_user");
     navigate("/");
   };
 
   // =========================================================
-  // ADMIN PROFILE IMAGE
+  // PASSWORD MANAGEMENT & SYNC
   // =========================================================
+
+  const handleSavePassword = (e) => {
+    e.preventDefault();
+    if (!newPasswordInput || newPasswordInput.length < 6) {
+      showToast("Password must be at least 6 characters.");
+      return;
+    }
+
+    setAdminProfile((prev) => ({ ...prev, password: newPasswordInput }));
+    setProfileForm((prev) => ({ ...prev, password: newPasswordInput }));
+
+    try {
+      const savedMockUsers = localStorage.getItem("swasthya_mock_users");
+      if (savedMockUsers) {
+        const usersList = JSON.parse(savedMockUsers);
+        const updated = usersList.map((u) =>
+          u.email.toLowerCase() === adminProfile.email.toLowerCase()
+            ? { ...u, password: newPasswordInput }
+            : u
+        );
+        localStorage.setItem("swasthya_mock_users", JSON.stringify(updated));
+      }
+
+      const activeUser = localStorage.getItem("swasthya_user");
+      if (activeUser) {
+        const user = JSON.parse(activeUser);
+        user.password = newPasswordInput;
+        localStorage.setItem("swasthya_user", JSON.stringify(user));
+      }
+    } catch (err) {
+      console.warn("Failed saving password locally", err);
+    }
+
+    setShowPasswordModal(false);
+    setNewPasswordInput("");
+    showToast("Password updated successfully.");
+  };
 
   const handleProfileImage = (event) => {
     const file = event.target.files?.[0];
-
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       showToast("Please select a valid image.");
       return;
     }
-
     const reader = new FileReader();
-
     reader.onload = (e) => {
       setAdminProfile((prev) => ({
         ...prev,
         image: e.target.result,
       }));
-
       showToast("Profile photo updated successfully.");
     };
-
     reader.readAsDataURL(file);
   };
 
@@ -464,18 +563,30 @@ function AdminDashboard() {
       accessLevel: adminProfile.accessLevel,
       email: adminProfile.email,
       phone: adminProfile.phone,
+      password: adminProfile.password,
     });
-
     setEditProfile(true);
   };
 
   const saveProfile = (e) => {
     e.preventDefault();
-
     setAdminProfile((prev) => ({
       ...prev,
       ...profileForm,
     }));
+
+    try {
+      const savedMockUsers = localStorage.getItem("swasthya_mock_users");
+      if (savedMockUsers && profileForm.password) {
+        const usersList = JSON.parse(savedMockUsers);
+        const updated = usersList.map((u) =>
+          u.email.toLowerCase() === adminProfile.email.toLowerCase()
+            ? { ...u, password: profileForm.password }
+            : u
+        );
+        localStorage.setItem("swasthya_mock_users", JSON.stringify(updated));
+      }
+    } catch {}
 
     setEditProfile(false);
     showToast("Profile updated successfully.");
@@ -488,10 +599,6 @@ function AdminDashboard() {
     }));
   };
 
-  // =========================================================
-  // ADMIN PROFILE AVATAR
-  // =========================================================
-
   const ProfileAvatar = ({ large = false }) => {
     return adminProfile.image ? (
       <img
@@ -502,9 +609,7 @@ function AdminDashboard() {
     ) : (
       <div
         className={
-          large
-            ? "admin-avatar-fallback large"
-            : "admin-avatar-fallback"
+          large ? "admin-avatar-fallback large" : "admin-avatar-fallback"
         }
       >
         SA
@@ -516,74 +621,56 @@ function AdminDashboard() {
   // USER ACTIONS
   // =========================================================
 
-  const updateUserStatus = (id, status) => {
+  const updateUserStatus = async (id, status) => {
+    try {
+      await api.patch(`/admin/users/${id}/status`, { status });
+    } catch {
+      const saved = localStorage.getItem("swasthyasetu_registrations");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const updated = parsed.map((u) => (u.id === id ? { ...u, status } : u));
+        localStorage.setItem("swasthyasetu_registrations", JSON.stringify(updated));
+      }
+    }
+
     setUsers((current) =>
-      current.map((user) =>
-        user.id === id ? { ...user, status } : user
-      )
+      current.map((user) => (user.id === id ? { ...user, status } : user))
     );
 
     showToast(`User ${status.toLowerCase()} successfully.`);
   };
 
-  // =========================================================
-  // FACILITY ACTIONS
-  // =========================================================
-
   const updateFacilityStatus = (id, status) => {
     setFacilities((current) =>
       current.map((facility) =>
-        facility.id === id
-          ? { ...facility, status }
-          : facility
+        facility.id === id ? { ...facility, status } : facility
       )
     );
-
     showToast(`Facility marked as ${status}.`);
   };
-
-  // =========================================================
-  // REFERRAL ACTIONS
-  // =========================================================
 
   const updateReferralStatus = (id, status) => {
     setReferrals((current) =>
       current.map((referral) =>
-        referral.id === id
-          ? { ...referral, status }
-          : referral
+        referral.id === id ? { ...referral, status } : referral
       )
     );
-
     showToast(`Referral marked as ${status}.`);
   };
-
-  // =========================================================
-  // CARE GAP ACTION
-  // =========================================================
 
   const resolveCareGap = (id) => {
     setCareGaps((current) =>
       current.map((gap) =>
-        gap.id === id
-          ? { ...gap, status: "Resolved" }
-          : gap
+        gap.id === id ? { ...gap, status: "Resolved" } : gap
       )
     );
-
     showToast("Care gap marked as resolved.");
   };
-
-  // =========================================================
-  // NOTIFICATION ACTIONS
-  // =========================================================
 
   const markNotificationRead = (id) => {
     setNotifications((current) =>
       current.map((item) =>
-        item.id === id
-          ? { ...item, read: true }
-          : item
+        item.id === id ? { ...item, read: true } : item
       )
     );
   };
@@ -595,13 +682,10 @@ function AdminDashboard() {
         read: true,
       }))
     );
-
     showToast("All notifications marked as read.");
   };
 
-  const unreadCount = notifications.filter(
-    (item) => !item.read
-  ).length;
+  const unreadCount = notifications.filter((item) => !item.read).length;
 
   // =========================================================
   // FILTERS
@@ -632,7 +716,7 @@ function AdminDashboard() {
   );
 
   // =========================================================
-  // DASHBOARD
+  // DASHBOARD RENDER
   // =========================================================
 
   const renderDashboard = () => (
@@ -692,9 +776,7 @@ function AdminDashboard() {
 
             <button
               className="panel-link"
-              onClick={() =>
-                handleMenu("Doctor Approvals")
-              }
+              onClick={() => handleMenu("Doctor Approvals")}
             >
               View all →
             </button>
@@ -702,27 +784,14 @@ function AdminDashboard() {
 
           <div className="admin-approval-list">
             {users
-              .filter(
-                (user) =>
-                  user.status === "Pending"
-              )
+              .filter((user) => user.status === "Pending")
               .slice(0, 4)
               .map((user) => (
                 <ApprovalRow
                   key={user.id}
                   user={user}
-                  onApprove={() =>
-                    updateUserStatus(
-                      user.id,
-                      "Approved"
-                    )
-                  }
-                  onReject={() =>
-                    updateUserStatus(
-                      user.id,
-                      "Rejected"
-                    )
-                  }
+                  onApprove={() => updateUserStatus(user.id, "Approved")}
+                  onReject={() => updateUserStatus(user.id, "Rejected")}
                   onView={() => {
                     setSelectedUser(user);
                     setShowUserDetails(true);
@@ -822,9 +891,7 @@ function AdminDashboard() {
               <CareGapRow
                 key={gap.id}
                 gap={gap}
-                onResolve={() =>
-                  resolveCareGap(gap.id)
-                }
+                onResolve={() => resolveCareGap(gap.id)}
               />
             ))}
           </div>
@@ -834,7 +901,7 @@ function AdminDashboard() {
   );
 
   // =========================================================
-  // USER MANAGEMENT
+  // USER MANAGEMENT RENDER
   // =========================================================
 
   const renderUserManagement = () => (
@@ -850,52 +917,31 @@ function AdminDashboard() {
 
           <input
             value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search users..."
           />
         </div>
 
         <button
           className="admin-secondary-btn"
-          onClick={() =>
-            showToast("User filters opened.")
-          }
+          onClick={() => showToast("User filters opened.")}
         >
           ⚙ Filter
         </button>
       </div>
 
       <div className="admin-mini-stats">
-        <MiniStat
-          label="All Users"
-          value="1,284"
-        />
-
-        <MiniStat
-          label="Doctors"
-          value="86"
-        />
-
-        <MiniStat
-          label="Health Workers"
-          value="164"
-        />
-
-        <MiniStat
-          label="Patients"
-          value="1,034"
-        />
+        <MiniStat label="All Users" value="1,284" />
+        <MiniStat label="Doctors" value="86" />
+        <MiniStat label="Health Workers" value="164" />
+        <MiniStat label="Patients" value="1,034" />
       </div>
 
       <div className="admin-panel full-panel">
         <div className="panel-header">
           <div>
             <h3>All Registered Users</h3>
-            <p>
-              {filteredUsers.length} users found
-            </p>
+            <p>{filteredUsers.length} users found</p>
           </div>
         </div>
 
@@ -910,14 +956,9 @@ function AdminDashboard() {
           </div>
 
           {filteredUsers.map((user) => (
-            <div
-              className="admin-table-row"
-              key={user.id}
-            >
+            <div className="admin-table-row" key={user.id}>
               <div className="admin-user-info">
-                <div className="admin-avatar">
-                  {user.name.charAt(0)}
-                </div>
+                <div className="admin-avatar">{user.name.charAt(0)}</div>
 
                 <div>
                   <strong>{user.name}</strong>
@@ -925,16 +966,9 @@ function AdminDashboard() {
                 </div>
               </div>
 
-              <span className="admin-role">
-                {user.role}
-              </span>
-
+              <span className="admin-role">{user.role}</span>
               <span>{user.facility}</span>
-
-              <StatusBadge
-                status={user.status}
-              />
-
+              <StatusBadge status={user.status} />
               <span>{user.joined}</span>
 
               <button
@@ -954,14 +988,12 @@ function AdminDashboard() {
   );
 
   // =========================================================
-  // APPROVALS
+  // APPROVALS RENDER
   // =========================================================
 
   const renderApprovals = (role) => {
     const approvalUsers = users.filter(
-      (user) =>
-        user.role === role &&
-        user.status === "Pending"
+      (user) => user.role === role && user.status === "Pending"
     );
 
     return (
@@ -974,42 +1006,21 @@ function AdminDashboard() {
         <div className="approval-summary">
           <MiniStat
             label="Pending"
-            value={String(
-              approvalUsers.length
-            ).padStart(2, "0")}
+            value={String(approvalUsers.length).padStart(2, "0")}
           />
-
-          <MiniStat
-            label="Approved Today"
-            value="08"
-          />
-
-          <MiniStat
-            label="Rejected"
-            value="03"
-          />
-
+          <MiniStat label="Approved Today" value="08" />
+          <MiniStat label="Rejected" value="03" />
           <MiniStat
             label="Total Registered"
-            value={
-              role === "Doctor"
-                ? "86"
-                : "164"
-            }
+            value={role === "Doctor" ? "86" : "164"}
           />
         </div>
 
         <div className="admin-panel full-panel">
           <div className="panel-header">
             <div>
-              <h3>
-                Pending {role} Registrations
-              </h3>
-
-              <p>
-                Review submitted registration details
-                before approval.
-              </p>
+              <h3>Pending {role} Registrations</h3>
+              <p>Review submitted registration details before approval.</p>
             </div>
           </div>
 
@@ -1017,37 +1028,23 @@ function AdminDashboard() {
             <div className="admin-empty-state">
               <div>✓</div>
               <h3>No pending approvals</h3>
-              <p>
-                All {role.toLowerCase()} registrations
-                have been reviewed.
-              </p>
+              <p>All {role.toLowerCase()} registrations have been reviewed.</p>
             </div>
           ) : (
             <div className="approval-full-list">
               {approvalUsers.map((user) => (
-                <div
-                  className="approval-card"
-                  key={user.id}
-                >
-                  <div className="admin-avatar large">
-                    {user.name.charAt(0)}
-                  </div>
+                <div className="approval-card" key={user.id}>
+                  <div className="admin-avatar large">{user.name.charAt(0)}</div>
 
                   <div className="approval-info">
                     <strong>{user.name}</strong>
-
                     <span>
                       {user.role} · {user.facility}
                     </span>
-
                     <small>
                       {user.email} · {user.phone}
                     </small>
-
-                    <small>
-                      Registration date:{" "}
-                      {user.joined}
-                    </small>
+                    <small>Registration date: {user.joined}</small>
                   </div>
 
                   <StatusBadge status="Pending" />
@@ -1065,24 +1062,14 @@ function AdminDashboard() {
 
                     <button
                       className="small-success-btn"
-                      onClick={() =>
-                        updateUserStatus(
-                          user.id,
-                          "Approved"
-                        )
-                      }
+                      onClick={() => updateUserStatus(user.id, "Approved")}
                     >
                       ✓ Approve
                     </button>
 
                     <button
                       className="small-danger-btn"
-                      onClick={() =>
-                        updateUserStatus(
-                          user.id,
-                          "Rejected"
-                        )
-                      }
+                      onClick={() => updateUserStatus(user.id, "Rejected")}
                     >
                       × Reject
                     </button>
@@ -1097,7 +1084,7 @@ function AdminDashboard() {
   };
 
   // =========================================================
-  // FACILITIES
+  // FACILITIES RENDER (WITH INTERACTIVE MAP VIEW)
   // =========================================================
 
   const renderFacilities = () => (
@@ -1108,177 +1095,193 @@ function AdminDashboard() {
         action={
           <button
             className="admin-primary-btn"
-            onClick={() =>
-              showToast(
-                "Add facility form opened."
-              )
-            }
+            onClick={() => showToast("Add facility form opened.")}
           >
             ＋ Add Facility
           </button>
         }
       />
 
-      <div className="admin-filter-bar">
-        <div className="admin-search">
-          <span>⌕</span>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "16px",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div className="admin-facility-stats" style={{ margin: 0 }}>
+          <MiniStat label="Total Facilities" value="42" />
+          <MiniStat label="Active" value="39" />
+          <MiniStat label="Under Review" value="03" />
+        </div>
 
-          <input
-            value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
-            placeholder="Search facilities..."
+        {/* View Switch: Grid vs Interactive Map */}
+        <div
+          style={{
+            display: "flex",
+            background: "var(--surface)",
+            padding: "4px",
+            borderRadius: "10px",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setFacilityViewMode("grid")}
+            style={{
+              padding: "7px 16px",
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontWeight: "600",
+              border: "none",
+              cursor: "pointer",
+              background:
+                facilityViewMode === "grid" ? "var(--primary)" : "transparent",
+              color:
+                facilityViewMode === "grid" ? "var(--white)" : "var(--text-muted)",
+            }}
+          >
+            ▤ Grid View
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFacilityViewMode("map")}
+            style={{
+              padding: "7px 16px",
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontWeight: "600",
+              border: "none",
+              cursor: "pointer",
+              background:
+                facilityViewMode === "map" ? "var(--primary)" : "transparent",
+              color:
+                facilityViewMode === "map" ? "var(--white)" : "var(--text-muted)",
+            }}
+          >
+            📍 Interactive Map
+          </button>
+        </div>
+      </div>
+
+      {facilityViewMode === "map" ? (
+        <div
+          style={{
+            height: "640px",
+            borderRadius: "16px",
+            overflow: "hidden",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-sm)",
+            marginBottom: "32px",
+          }}
+        >
+          <FacilityMap
+            onSelectFacility={(fac) => {
+              setSelectedFacility(fac);
+              setShowFacilityDetails(true);
+            }}
           />
         </div>
+      ) : (
+        <>
+          <div className="admin-filter-bar">
+            <div className="admin-search">
+              <span>⌕</span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search facilities..."
+              />
+            </div>
 
-        <button
-          className="admin-secondary-btn"
-          onClick={() =>
-            showToast(
-              "Facility filters opened."
-            )
-          }
-        >
-          ⚙ Filter
-        </button>
-      </div>
-
-      <div className="admin-facility-stats">
-        <MiniStat
-          label="Total Facilities"
-          value="42"
-        />
-
-        <MiniStat
-          label="Active"
-          value="39"
-        />
-
-        <MiniStat
-          label="Under Review"
-          value="03"
-        />
-
-        <MiniStat
-          label="Added This Month"
-          value="03"
-        />
-      </div>
-
-      <div className="admin-panel full-panel">
-        <div className="panel-header">
-          <div>
-            <h3>Facility Network</h3>
-            <p>
-              {filteredFacilities.length} facilities
-              found
-            </p>
-          </div>
-        </div>
-
-        <div className="admin-facility-grid">
-          {filteredFacilities.map((facility) => (
-            <div
-              className="admin-facility-card"
-              key={facility.id}
+            <button
+              className="admin-secondary-btn"
+              onClick={() => showToast("Facility filters opened.")}
             >
-              <div className="facility-card-top">
-                <div className="facility-main-icon">
-                  🏥
-                </div>
+              ⚙ Filter
+            </button>
+          </div>
 
-                <StatusBadge
-                  status={facility.status}
-                />
-              </div>
-
-              <h3>{facility.name}</h3>
-
-              <p className="facility-type">
-                {facility.type}
-              </p>
-
-              <div className="facility-detail-line">
-                ⌖ {facility.location}
-              </div>
-
-              <div className="facility-detail-line">
-                ☎ {facility.contact}
-              </div>
-
-              <div className="facility-counts">
-                <span>
-                  <strong>
-                    {facility.doctors}
-                  </strong>
-                  Doctors
-                </span>
-
-                <span>
-                  <strong>
-                    {facility.workers}
-                  </strong>
-                  Workers
-                </span>
-
-                <span>
-                  <strong>
-                    {facility.patients}
-                  </strong>
-                  Patients
-                </span>
-              </div>
-
-              <div className="facility-card-actions">
-                <button
-                  className="admin-secondary-btn"
-                  onClick={() => {
-                    setSelectedFacility(
-                      facility
-                    );
-                    setShowFacilityDetails(true);
-                  }}
-                >
-                  View Details
-                </button>
-
-                {facility.status ===
-                "Active" ? (
-                  <button
-                    className="small-warning-btn"
-                    onClick={() =>
-                      updateFacilityStatus(
-                        facility.id,
-                        "Under Review"
-                      )
-                    }
-                  >
-                    Review
-                  </button>
-                ) : (
-                  <button
-                    className="small-success-btn"
-                    onClick={() =>
-                      updateFacilityStatus(
-                        facility.id,
-                        "Active"
-                      )
-                    }
-                  >
-                    Activate
-                  </button>
-                )}
+          <div className="admin-panel full-panel">
+            <div className="panel-header">
+              <div>
+                <h3>Facility Network</h3>
+                <p>{filteredFacilities.length} facilities found</p>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+
+            <div className="admin-facility-grid">
+              {filteredFacilities.map((facility) => (
+                <div className="admin-facility-card" key={facility.id}>
+                  <div className="facility-card-top">
+                    <div className="facility-main-icon">🏥</div>
+                    <StatusBadge status={facility.status} />
+                  </div>
+
+                  <h3>{facility.name}</h3>
+                  <p className="facility-type">{facility.type}</p>
+
+                  <div className="facility-detail-line">⌖ {facility.location}</div>
+                  <div className="facility-detail-line">☎ {facility.contact}</div>
+
+                  <div className="facility-counts">
+                    <span>
+                      <strong>{facility.doctors}</strong> Doctors
+                    </span>
+                    <span>
+                      <strong>{facility.workers}</strong> Workers
+                    </span>
+                    <span>
+                      <strong>{facility.patients}</strong> Patients
+                    </span>
+                  </div>
+
+                  <div className="facility-card-actions">
+                    <button
+                      className="admin-secondary-btn"
+                      onClick={() => {
+                        setSelectedFacility(facility);
+                        setShowFacilityDetails(true);
+                      }}
+                    >
+                      View Details
+                    </button>
+
+                    {facility.status === "Active" ? (
+                      <button
+                        className="small-warning-btn"
+                        onClick={() =>
+                          updateFacilityStatus(facility.id, "Under Review")
+                        }
+                      >
+                        Review
+                      </button>
+                    ) : (
+                      <button
+                        className="small-success-btn"
+                        onClick={() =>
+                          updateFacilityStatus(facility.id, "Active")
+                        }
+                      >
+                        Activate
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 
   // =========================================================
-  // REFERRALS
+  // REFERRALS RENDER
   // =========================================================
 
   const renderReferrals = () => (
@@ -1294,44 +1297,24 @@ function AdminDashboard() {
 
           <input
             value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search referrals..."
           />
         </div>
       </div>
 
       <div className="admin-referral-stats">
-        <MiniStat
-          label="Total Referrals"
-          value="328"
-        />
-
-        <MiniStat
-          label="Pending"
-          value="24"
-        />
-
-        <MiniStat
-          label="In Progress"
-          value="46"
-        />
-
-        <MiniStat
-          label="Completed"
-          value="258"
-        />
+        <MiniStat label="Total Referrals" value="328" />
+        <MiniStat label="Pending" value="24" />
+        <MiniStat label="In Progress" value="46" />
+        <MiniStat label="Completed" value="258" />
       </div>
 
       <div className="admin-panel full-panel">
         <div className="panel-header">
           <div>
             <h3>Referral Tracking</h3>
-            <p>
-              {filteredReferrals.length} referrals
-              displayed
-            </p>
+            <p>{filteredReferrals.length} referrals displayed</p>
           </div>
         </div>
 
@@ -1347,41 +1330,23 @@ function AdminDashboard() {
           </div>
 
           {filteredReferrals.map((referral) => (
-            <div
-              className="admin-referral-row"
-              key={referral.id}
-            >
+            <div className="admin-referral-row" key={referral.id}>
               <div className="admin-user-info">
-                <div className="admin-avatar">
-                  {referral.patient.charAt(0)}
-                </div>
-
-                <strong>
-                  {referral.patient}
-                </strong>
+                <div className="admin-avatar">{referral.patient.charAt(0)}</div>
+                <strong>{referral.patient}</strong>
               </div>
 
               <span>{referral.from}</span>
-
               <span>{referral.to}</span>
-
               <span>{referral.reason}</span>
-
               <span>{referral.date}</span>
-
-              <StatusBadge
-                status={referral.status}
-              />
+              <StatusBadge status={referral.status} />
 
               <button
                 className="small-icon-btn"
                 onClick={() => {
-                  setSelectedReferral(
-                    referral
-                  );
-                  setShowReferralDetails(
-                    true
-                  );
+                  setSelectedReferral(referral);
+                  setShowReferralDetails(true);
                 }}
               >
                 →
@@ -1394,7 +1359,7 @@ function AdminDashboard() {
   );
 
   // =========================================================
-  // CARE GAPS
+  // CARE GAPS RENDER
   // =========================================================
 
   const renderCareGaps = () => (
@@ -1405,25 +1370,10 @@ function AdminDashboard() {
       />
 
       <div className="care-gap-stats">
-        <MiniStat
-          label="Open Gaps"
-          value="18"
-        />
-
-        <MiniStat
-          label="Critical"
-          value="04"
-        />
-
-        <MiniStat
-          label="High Priority"
-          value="07"
-        />
-
-        <MiniStat
-          label="Resolved"
-          value="62"
-        />
+        <MiniStat label="Open Gaps" value="18" />
+        <MiniStat label="Critical" value="04" />
+        <MiniStat label="High Priority" value="07" />
+        <MiniStat label="Resolved" value="62" />
       </div>
 
       <div className="admin-filter-bar">
@@ -1432,20 +1382,14 @@ function AdminDashboard() {
 
           <input
             value={search}
-            onChange={(e) =>
-              setSearch(e.target.value)
-            }
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search care gaps..."
           />
         </div>
 
         <button
           className="admin-secondary-btn"
-          onClick={() =>
-            showToast(
-              "Care gap filters opened."
-            )
-          }
+          onClick={() => showToast("Care gap filters opened.")}
         >
           ⚙ Filter
         </button>
@@ -1455,18 +1399,13 @@ function AdminDashboard() {
         <div className="panel-header">
           <div>
             <h3>Care Gap Monitoring</h3>
-            <p>
-              Track unresolved gaps in patient care.
-            </p>
+            <p>Track unresolved gaps in patient care.</p>
           </div>
         </div>
 
         <div className="care-gap-full-list">
           {filteredCareGaps.map((gap) => (
-            <div
-              className="care-gap-card"
-              key={gap.id}
-            >
+            <div className="care-gap-card" key={gap.id}>
               <div
                 className={`care-gap-priority ${gap.priority
                   .toLowerCase()
@@ -1477,29 +1416,19 @@ function AdminDashboard() {
 
               <div className="care-gap-info">
                 <strong>{gap.patient}</strong>
-
                 <span>{gap.gap}</span>
-
                 <small>
-                  {gap.facility} · Last contact:{" "}
-                  {gap.lastContact}
+                  {gap.facility} · Last contact: {gap.lastContact}
                 </small>
               </div>
 
-              <StatusBadge
-                status={gap.priority}
-              />
-
-              <StatusBadge
-                status={gap.status}
-              />
+              <StatusBadge status={gap.priority} />
+              <StatusBadge status={gap.status} />
 
               {gap.status !== "Resolved" && (
                 <button
                   className="small-success-btn"
-                  onClick={() =>
-                    resolveCareGap(gap.id)
-                  }
+                  onClick={() => resolveCareGap(gap.id)}
                 >
                   ✓ Resolve
                 </button>
@@ -1558,30 +1487,11 @@ function AdminDashboard() {
           </div>
 
           <div className="quality-bars">
-            <QualityBar
-              label="Appointment Completion"
-              value={94}
-            />
-
-            <QualityBar
-              label="Referral Completion"
-              value={88}
-            />
-
-            <QualityBar
-              label="Follow-up Compliance"
-              value={92}
-            />
-
-            <QualityBar
-              label="Diagnostic Completion"
-              value={84}
-            />
-
-            <QualityBar
-              label="Patient Satisfaction"
-              value={91}
-            />
+            <QualityBar label="Appointment Completion" value={94} />
+            <QualityBar label="Referral Completion" value={88} />
+            <QualityBar label="Follow-up Compliance" value={92} />
+            <QualityBar label="Diagnostic Completion" value={84} />
+            <QualityBar label="Patient Satisfaction" value={91} />
           </div>
         </div>
 
@@ -1664,42 +1574,19 @@ function AdminDashboard() {
         <div className="panel-header">
           <div>
             <h3>Referral Activity</h3>
-            <p>
-              Referral volume over the last 7 days
-            </p>
+            <p>Referral volume over the last 7 days</p>
           </div>
         </div>
 
         <div className="fake-chart admin-chart">
-          {[52, 68, 48, 82, 65, 91, 76].map(
-            (height, index) => (
-              <div
-                className="chart-column"
-                key={index}
-              >
-                <div
-                  className="chart-bar"
-                  style={{
-                    height: `${height}%`,
-                  }}
-                ></div>
-
-                <span>
-                  {
-                    [
-                      "Mon",
-                      "Tue",
-                      "Wed",
-                      "Thu",
-                      "Fri",
-                      "Sat",
-                      "Sun",
-                    ][index]
-                  }
-                </span>
-              </div>
-            )
-          )}
+          {[52, 68, 48, 82, 65, 91, 76].map((height, index) => (
+            <div className="chart-column" key={index}>
+              <div className="chart-bar" style={{ height: `${height}%` }}></div>
+              <span>
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][index]}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1712,29 +1599,10 @@ function AdminDashboard() {
             </div>
           </div>
 
-          <AnalyticsRow
-            label="PHC"
-            value="142"
-            percentage="43%"
-          />
-
-          <AnalyticsRow
-            label="CHC"
-            value="108"
-            percentage="33%"
-          />
-
-          <AnalyticsRow
-            label="District Hospital"
-            value="52"
-            percentage="16%"
-          />
-
-          <AnalyticsRow
-            label="Other"
-            value="26"
-            percentage="8%"
-          />
+          <AnalyticsRow label="PHC" value="142" percentage="43%" />
+          <AnalyticsRow label="CHC" value="108" percentage="33%" />
+          <AnalyticsRow label="District Hospital" value="52" percentage="16%" />
+          <AnalyticsRow label="Other" value="26" percentage="8%" />
         </div>
 
         <div className="admin-panel">
@@ -1745,36 +1613,17 @@ function AdminDashboard() {
             </div>
           </div>
 
-          <AnalyticsRow
-            label="District Hospital"
-            value="136"
-            percentage="41%"
-          />
-
-          <AnalyticsRow
-            label="CHC"
-            value="94"
-            percentage="29%"
-          />
-
-          <AnalyticsRow
-            label="Diagnostic Centres"
-            value="62"
-            percentage="19%"
-          />
-
-          <AnalyticsRow
-            label="Specialist Hospitals"
-            value="36"
-            percentage="11%"
-          />
+          <AnalyticsRow label="District Hospital" value="136" percentage="41%" />
+          <AnalyticsRow label="CHC" value="94" percentage="29%" />
+          <AnalyticsRow label="Diagnostic Centres" value="62" percentage="19%" />
+          <AnalyticsRow label="Specialist Hospitals" value="36" percentage="11%" />
         </div>
       </div>
     </>
   );
 
   // =========================================================
-  // NOTIFICATIONS
+  // NOTIFICATIONS RENDER
   // =========================================================
 
   const renderNotifications = () => (
@@ -1788,17 +1637,10 @@ function AdminDashboard() {
         <div className="panel-header">
           <div>
             <h3>Recent Notifications</h3>
-            <p>
-              Latest updates from the admin dashboard.
-            </p>
+            <p>Latest updates from the admin dashboard.</p>
           </div>
 
-          <button
-            className="panel-link"
-            onClick={
-              markAllNotificationsRead
-            }
-          >
+          <button className="panel-link" onClick={markAllNotificationsRead}>
             Mark all as read
           </button>
         </div>
@@ -1807,40 +1649,20 @@ function AdminDashboard() {
           {notifications.map((notification) => (
             <button
               className={`admin-notification-item ${
-                !notification.read
-                  ? "unread"
-                  : ""
+                !notification.read ? "unread" : ""
               }`}
               key={notification.id}
-              onClick={() =>
-                markNotificationRead(
-                  notification.id
-                )
-              }
+              onClick={() => markNotificationRead(notification.id)}
             >
-              <div className="notification-icon">
-                🔔
-              </div>
+              <div className="notification-icon">🔔</div>
 
               <div>
-                <strong>
-                  {notification.title}
-                </strong>
-
-                <p>
-                  {notification.message}
-                </p>
-
-                <small>
-                  {notification.time}
-                </small>
+                <strong>{notification.title}</strong>
+                <p>{notification.message}</p>
+                <small>{notification.time}</small>
               </div>
 
-              {!notification.read && (
-                <span className="new-label">
-                  NEW
-                </span>
-              )}
+              {!notification.read && <span className="new-label">NEW</span>}
             </button>
           ))}
         </div>
@@ -1849,19 +1671,16 @@ function AdminDashboard() {
   );
 
   // =========================================================
-  // PROFILE
+  // PROFILE RENDER
   // =========================================================
 
   const renderProfile = () => (
     <>
       <PageHeader
         title="Admin Profile"
-        subtitle="Manage your administrator information and dashboard preferences."
+        subtitle="Manage your administrator information and portal credentials."
         action={
-          <button
-            className="admin-primary-btn"
-            onClick={openEditProfile}
-          >
+          <button className="admin-primary-btn" onClick={openEditProfile}>
             ✎ Edit Profile
           </button>
         }
@@ -1898,12 +1717,20 @@ function AdminDashboard() {
               <span>{adminProfile.department}</span>
             </div>
 
-            <button
-              className="admin-secondary-btn profile-edit-button"
-              onClick={openEditProfile}
-            >
-              ✎ Edit Profile
-            </button>
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px", justifyContent: "center" }}>
+              <button
+                className="admin-secondary-btn profile-edit-button"
+                onClick={openEditProfile}
+              >
+                ✎ Edit Profile
+              </button>
+              <button
+                className="admin-primary-btn"
+                onClick={() => setShowPasswordModal(true)}
+              >
+                🔑 Change Password
+              </button>
+            </div>
 
             <div className="admin-profile-details profile-details">
               <InfoItem label="Role" value={adminProfile.role} />
@@ -1912,6 +1739,28 @@ function AdminDashboard() {
               <InfoItem label="Department" value={adminProfile.department} />
               <InfoItem label="Phone" value={adminProfile.phone} />
               <InfoItem label="Email" value={adminProfile.email} />
+              <div className="info-item">
+                <span>Account Password</span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <strong>••••••••</strong>
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(true)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "var(--primary, #08746e)",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                      padding: 0,
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+              </div>
               <InfoItem label="Account Status" value="Active" />
             </div>
 
@@ -1920,7 +1769,7 @@ function AdminDashboard() {
               <p>
                 Administrator account responsible for managing users,
                 healthcare facilities, approvals, referrals, care gaps,
-                analytics and system-level settings.
+                analytics and system-level settings across Varanasi district.
               </p>
             </div>
           </div>
@@ -2030,6 +1879,13 @@ function AdminDashboard() {
                 value={profileForm.email}
                 onChange={(e) => updateProfileField("email", e.target.value)}
               />
+
+              <FormField
+                label="Portal Password"
+                type="password"
+                value={profileForm.password}
+                onChange={(e) => updateProfileField("password", e.target.value)}
+              />
             </div>
 
             <div className="edit-profile-actions">
@@ -2041,10 +1897,7 @@ function AdminDashboard() {
                 Cancel
               </button>
 
-              <button
-                type="submit"
-                className="admin-primary-btn"
-              >
+              <button type="submit" className="admin-primary-btn">
                 ✓ Save Profile
               </button>
             </div>
@@ -2055,14 +1908,14 @@ function AdminDashboard() {
   );
 
   // =========================================================
-  // SETTINGS
+  // SETTINGS RENDER
   // =========================================================
 
   const renderSettings = () => (
     <>
       <PageHeader
         title="Settings"
-        subtitle="Manage your admin account and dashboard preferences."
+        subtitle="Manage your admin account, password and dashboard preferences."
         action={
           <button
             className="admin-secondary-btn"
@@ -2076,14 +1929,40 @@ function AdminDashboard() {
       <div className="admin-settings-grid">
         <div className="admin-panel settings-section">
           <div className="settings-heading">
-            <span>🔔</span>
+            <span>🔐</span>
+            <div>
+              <h3>Security & Password</h3>
+              <p>Protect administrator access and credentials.</p>
+            </div>
+          </div>
 
+          <div className="setting-row">
+            <div>
+              <strong>Account Password</strong>
+              <span>Update your secure administrator login password.</span>
+            </div>
+
+            <button
+              className="admin-primary-btn"
+              onClick={() => setShowPasswordModal(true)}
+            >
+              🔑 Change Password
+            </button>
+          </div>
+
+          <SettingRow
+            title="Two-Factor Authentication"
+            text="Add an extra verification step when signing in."
+            defaultChecked
+          />
+        </div>
+
+        <div className="admin-panel settings-section">
+          <div className="settings-heading">
+            <span>🔔</span>
             <div>
               <h3>Notification Preferences</h3>
-              <p>
-                Choose which administrative updates
-                you want to receive.
-              </p>
+              <p>Choose which administrative updates you want to receive.</p>
             </div>
           </div>
 
@@ -2111,69 +1990,6 @@ function AdminDashboard() {
             defaultChecked
           />
         </div>
-
-        <div className="admin-panel settings-section">
-          <div className="settings-heading">
-            <span>🔐</span>
-
-            <div>
-              <h3>Security</h3>
-              <p>
-                Protect administrator access.
-              </p>
-            </div>
-          </div>
-
-          <SettingRow
-            title="Two-Factor Authentication"
-            text="Add an extra verification step when signing in."
-            defaultChecked
-          />
-
-          <button
-            className="admin-secondary-btn settings-action"
-            onClick={() =>
-              showToast(
-                "Change password opened."
-              )
-            }
-          >
-            🔑 Change Password
-          </button>
-
-          <button
-            className="admin-secondary-btn settings-action"
-            onClick={() =>
-              showToast(
-                "Active sessions opened."
-              )
-            }
-          >
-            🖥 Manage Active Sessions
-          </button>
-        </div>
-      </div>
-
-      <div className="settings-bottom-actions">
-        <button
-          className="admin-secondary-btn"
-          onClick={() =>
-            showToast("Changes cancelled.")
-          }
-        >
-          Cancel
-        </button>
-
-        <button
-          className="admin-primary-btn"
-          onClick={() =>
-            showToast(
-              "Settings saved successfully."
-            )
-          }
-        >
-          ✓ Save Settings
-        </button>
       </div>
     </>
   );
@@ -2186,114 +2002,63 @@ function AdminDashboard() {
     switch (activeMenu) {
       case "Dashboard":
         return renderDashboard();
-
       case "User Management":
         return renderUserManagement();
-
       case "Doctor Approvals":
         return renderApprovals("Doctor");
-
       case "Health Worker Approvals":
-        return renderApprovals(
-          "Health Worker"
-        );
-
+        return renderApprovals("Health Worker");
       case "Facilities":
         return renderFacilities();
-
       case "Referrals":
         return renderReferrals();
-
       case "Care Gaps":
         return renderCareGaps();
-
       case "Quality Dashboard":
         return renderQualityDashboard();
-
       case "Referral Analytics":
         return renderReferralAnalytics();
-
       case "Notifications":
         return renderNotifications();
-
       case "Profile":
         return renderProfile();
-
       case "Settings":
         return renderSettings();
-
       default:
         return renderDashboard();
     }
   };
 
-  // =========================================================
-  // SIDEBAR MENU
-  // =========================================================
-
   const menuItems = [
     {
       section: "MAIN",
       items: [
-        {
-          label: "Dashboard",
-          icon: "⌂",
-        },
-        {
-          label: "User Management",
-          icon: "♙",
-        },
-        {
-          label: "Doctor Approvals",
-          icon: "🩺",
-        },
-        {
-          label: "Health Worker Approvals",
-          icon: "♟",
-        },
+        { label: "Dashboard", icon: "⌂" },
+        { label: "User Management", icon: "♙" },
+        { label: "Doctor Approvals", icon: "🩺" },
+        { label: "Health Worker Approvals", icon: "♟" },
       ],
     },
-
     {
       section: "NETWORK",
       items: [
-        {
-          label: "Facilities",
-          icon: "▣",
-        },
-        {
-          label: "Referrals",
-          icon: "↗",
-        },
-        {
-          label: "Care Gaps",
-          icon: "⚠",
-        },
+        { label: "Facilities", icon: "▣" },
+        { label: "Referrals", icon: "↗" },
+        { label: "Care Gaps", icon: "⚠" },
       ],
     },
-
     {
       section: "INSIGHTS",
       items: [
-        {
-          label: "Quality Dashboard",
-          icon: "▥",
-        },
-        {
-          label: "Referral Analytics",
-          icon: "▤",
-        },
+        { label: "Quality Dashboard", icon: "▥" },
+        { label: "Referral Analytics", icon: "▤" },
       ],
     },
   ];
 
   return (
     <div className="admin-dashboard-page">
-
-      {/* =====================================================
-          SIDEBAR
-      ===================================================== */}
-
+      {/* SIDEBAR */}
       <aside
         className={`admin-sidebar ${
           mobileMenuOpen ? "mobile-admin-sidebar-open" : ""
@@ -2308,12 +2073,8 @@ function AdminDashboard() {
             : undefined
         }
       >
-
         <div className="admin-brand">
-          <div className="admin-brand-icon">
-            ✚
-          </div>
-
+          <div className="admin-brand-icon">✚</div>
           <div>
             <strong>SwasthyaSetu</strong>
             <span>Admin Portal</span>
@@ -2322,7 +2083,6 @@ function AdminDashboard() {
 
         <div className="admin-sidebar-profile">
           <ProfileAvatar />
-
           <div>
             <strong>{adminProfile.name}</strong>
             <span>{adminProfile.role}</span>
@@ -2330,118 +2090,64 @@ function AdminDashboard() {
         </div>
 
         <nav className="admin-navigation">
-
           {menuItems.map((group) => (
-            <div
-              className="admin-nav-group"
-              key={group.section}
-            >
+            <div className="admin-nav-group" key={group.section}>
               <small>{group.section}</small>
-
               {group.items.map((item) => (
                 <button
                   key={item.label}
                   className={`admin-nav-item ${
-                    activeMenu === item.label
-                      ? "active"
-                      : ""
+                    activeMenu === item.label ? "active" : ""
                   }`}
-                  onClick={() =>
-                    handleMenu(item.label)
-                  }
+                  onClick={() => handleMenu(item.label)}
                 >
-                  <span className="admin-nav-icon">
-                    {item.icon}
-                  </span>
-
+                  <span className="admin-nav-icon">{item.icon}</span>
                   <span>{item.label}</span>
-
-                  {item.label ===
-                    "Doctor Approvals" && (
-                    <b>1</b>
-                  )}
-
-                  {item.label ===
-                    "Health Worker Approvals" && (
-                    <b>1</b>
-                  )}
-
-                  {item.label ===
-                    "Care Gaps" && (
-                    <b>4</b>
-                  )}
+                  {item.label === "Doctor Approvals" && <b>1</b>}
+                  {item.label === "Health Worker Approvals" && <b>1</b>}
+                  {item.label === "Care Gaps" && <b>4</b>}
                 </button>
               ))}
             </div>
           ))}
-
         </nav>
 
         <div className="admin-sidebar-bottom">
-
           <button
             className={`admin-nav-item ${
-              activeMenu === "Notifications"
-                ? "active"
-                : ""
+              activeMenu === "Notifications" ? "active" : ""
             }`}
-            onClick={() =>
-              handleMenu("Notifications")
-            }
+            onClick={() => handleMenu("Notifications")}
           >
-            <span className="admin-nav-icon">
-              ♢
-            </span>
-
+            <span className="admin-nav-icon">♢</span>
             <span>Notifications</span>
-
-            {unreadCount > 0 && (
-              <b>{unreadCount}</b>
-            )}
+            {unreadCount > 0 && <b>{unreadCount}</b>}
           </button>
 
           <button
             className={`admin-nav-item ${
-              activeMenu === "Profile"
-                ? "active"
-                : ""
+              activeMenu === "Profile" ? "active" : ""
             }`}
-            onClick={() =>
-              handleMenu("Profile")
-            }
+            onClick={() => handleMenu("Profile")}
           >
-            <span className="admin-nav-icon">
-              👤
-            </span>
-
+            <span className="admin-nav-icon">👤</span>
             <span>Profile</span>
           </button>
 
           <button
             className={`admin-nav-item ${
-              activeMenu === "Settings"
-                ? "active"
-                : ""
+              activeMenu === "Settings" ? "active" : ""
             }`}
-            onClick={() =>
-              handleMenu("Settings")
-            }
+            onClick={() => handleMenu("Settings")}
           >
-            <span className="admin-nav-icon">
-              ⚙
-            </span>
-
+            <span className="admin-nav-icon">⚙</span>
             <span>Settings</span>
           </button>
 
-          <button
-            className="admin-logout"
-            onClick={handleLogout}
-          >
+          <button className="admin-logout" onClick={handleLogout}>
             <span>↪</span>
             Logout
           </button>
-
         </div>
       </aside>
 
@@ -2453,16 +2159,9 @@ function AdminDashboard() {
         />
       )}
 
-      {/* =====================================================
-          MAIN
-      ===================================================== */}
-
+      {/* MAIN */}
       <main className="admin-main">
-
-        {/* TOPBAR */}
-
         <header className="admin-topbar">
-
           <button
             type="button"
             className="mobile-admin-menu-toggle"
@@ -2481,7 +2180,6 @@ function AdminDashboard() {
           </div>
 
           <div className="admin-breadcrumb">
-
             <button
               className="top-back-btn"
               onClick={handleBack}
@@ -2492,62 +2190,34 @@ function AdminDashboard() {
             </button>
 
             <span>Admin Portal</span>
-
             <b>/</b>
-
             <strong>{activeMenu}</strong>
-
           </div>
 
           <div className="admin-top-actions">
-
             <button
               className="admin-topbar-icon-btn"
-              onClick={() =>
-                setNotificationOpen(
-                  !notificationOpen
-                )
-              }
+              onClick={() => setNotificationOpen(!notificationOpen)}
             >
               🔔
-
-              {unreadCount > 0 && (
-                <i>{unreadCount}</i>
-              )}
+              {unreadCount > 0 && <i>{unreadCount}</i>}
             </button>
 
             <div className="admin-profile-wrapper">
-
               <button
                 className="admin-top-profile"
-                onClick={() =>
-                  setShowProfile(
-                    !showProfile
-                  )
-                }
+                onClick={() => setShowProfile(!showProfile)}
               >
-
                 <ProfileAvatar />
-
                 <div>
-                  <strong>
-                    {adminProfile.name}
-                  </strong>
-
-                  <span>
-                    {adminProfile.role}
-                  </span>
+                  <strong>{adminProfile.name}</strong>
+                  <span>{adminProfile.role}</span>
                 </div>
-
-                <span className="profile-arrow">
-                  ⌄
-                </span>
-
+                <span className="profile-arrow">⌄</span>
               </button>
 
               {showProfile && (
                 <div className="admin-profile-dropdown">
-
                   <button
                     onClick={() => {
                       setShowProfile(false);
@@ -2566,170 +2236,79 @@ function AdminDashboard() {
                     ⚙ Settings
                   </button>
 
-                  <button
-                    onClick={handleLogout}
-                  >
-                    ↪ Logout
-                  </button>
-
+                  <button onClick={handleLogout}>↪ Logout</button>
                 </div>
               )}
-
             </div>
           </div>
 
-          {/* NOTIFICATION DROPDOWN */}
-
           {notificationOpen && (
             <div className="admin-notification-dropdown">
-
               <div className="dropdown-title">
-                <strong>
-                  Notifications
-                </strong>
-
-                <span>
-                  {unreadCount} new
-                </span>
+                <strong>Notifications</strong>
+                <span>{unreadCount} new</span>
               </div>
 
-              {notifications
-                .slice(0, 4)
-                .map((notification) => (
-                  <button
-                    className="dropdown-notification"
-                    key={notification.id}
-                    onClick={() =>
-                      markNotificationRead(
-                        notification.id
-                      )
-                    }
-                  >
-                    <div>🔔</div>
-
-                    <div>
-                      <strong>
-                        {notification.title}
-                      </strong>
-
-                      <p>
-                        {notification.message}
-                      </p>
-
-                      <small>
-                        {notification.time}
-                      </small>
-                    </div>
-                  </button>
-                ))}
+              {notifications.slice(0, 4).map((notification) => (
+                <button
+                  className="dropdown-notification"
+                  key={notification.id}
+                  onClick={() => markNotificationRead(notification.id)}
+                >
+                  <div>🔔</div>
+                  <div>
+                    <strong>{notification.title}</strong>
+                    <p>{notification.message}</p>
+                    <small>{notification.time}</small>
+                  </div>
+                </button>
+              ))}
 
               <button
                 className="notification-view-all"
                 onClick={() => {
                   setNotificationOpen(false);
-                  handleMenu(
-                    "Notifications"
-                  );
+                  handleMenu("Notifications");
                 }}
               >
                 View all notifications →
               </button>
-
             </div>
           )}
-
         </header>
 
-        {/* PAGE CONTENT */}
-
-        <section className="admin-content">
-          {renderContent()}
-        </section>
-
+        <section className="admin-content">{renderContent()}</section>
       </main>
 
-      {/* =====================================================
-          USER MODAL
-      ===================================================== */}
-
+      {/* USER DETAILS MODAL */}
       {showUserDetails && selectedUser && (
-        <Modal
-          title="User Details"
-          onClose={() =>
-            setShowUserDetails(false)
-          }
-        >
+        <Modal title="User Details" onClose={() => setShowUserDetails(false)}>
           <div className="modal-patient">
-
-            <div className="admin-avatar large">
-              {selectedUser.name.charAt(0)}
-            </div>
-
+            <div className="admin-avatar large">{selectedUser.name.charAt(0)}</div>
             <div>
-              <h3>
-                {selectedUser.name}
-              </h3>
-
-              <p>
-                {selectedUser.role}
-              </p>
+              <h3>{selectedUser.name}</h3>
+              <p>{selectedUser.role}</p>
             </div>
-
-            <StatusBadge
-              status={selectedUser.status}
-            />
-
+            <StatusBadge status={selectedUser.status} />
           </div>
 
           <div className="modal-info-grid">
-
-            <InfoItem
-              label="Email"
-              value={selectedUser.email}
-            />
-
-            <InfoItem
-              label="Phone"
-              value={selectedUser.phone}
-            />
-
-            <InfoItem
-              label="Role"
-              value={selectedUser.role}
-            />
-
-            <InfoItem
-              label="Facility"
-              value={selectedUser.facility}
-            />
-
-            <InfoItem
-              label="Joined"
-              value={selectedUser.joined}
-            />
-
-            <InfoItem
-              label="Status"
-              value={selectedUser.status}
-            />
-
+            <InfoItem label="Email" value={selectedUser.email} />
+            <InfoItem label="Phone" value={selectedUser.phone} />
+            <InfoItem label="Role" value={selectedUser.role} />
+            <InfoItem label="Facility" value={selectedUser.facility} />
+            <InfoItem label="Joined" value={selectedUser.joined} />
+            <InfoItem label="Status" value={selectedUser.status} />
           </div>
 
           <div className="modal-actions">
-
-            {selectedUser.status ===
-              "Pending" && (
+            {selectedUser.status === "Pending" && (
               <>
                 <button
                   className="admin-success-btn"
                   onClick={() => {
-                    updateUserStatus(
-                      selectedUser.id,
-                      "Approved"
-                    );
-                    setShowUserDetails(
-                      false
-                    );
+                    updateUserStatus(selectedUser.id, "Approved");
+                    setShowUserDetails(false);
                   }}
                 >
                   ✓ Approve
@@ -2738,13 +2317,8 @@ function AdminDashboard() {
                 <button
                   className="admin-danger-btn"
                   onClick={() => {
-                    updateUserStatus(
-                      selectedUser.id,
-                      "Rejected"
-                    );
-                    setShowUserDetails(
-                      false
-                    );
+                    updateUserStatus(selectedUser.id, "Rejected");
+                    setShowUserDetails(false);
                   }}
                 >
                   × Reject
@@ -2752,31 +2326,19 @@ function AdminDashboard() {
               </>
             )}
 
-            {selectedUser.status ===
-              "Approved" && (
+            {selectedUser.status === "Approved" && (
               <button
                 className="admin-warning-btn"
-                onClick={() =>
-                  updateUserStatus(
-                    selectedUser.id,
-                    "Suspended"
-                  )
-                }
+                onClick={() => updateUserStatus(selectedUser.id, "Suspended")}
               >
                 Suspend User
               </button>
             )}
 
-            {selectedUser.status ===
-              "Suspended" && (
+            {selectedUser.status === "Suspended" && (
               <button
                 className="admin-success-btn"
-                onClick={() =>
-                  updateUserStatus(
-                    selectedUser.id,
-                    "Approved"
-                  )
-                }
+                onClick={() => updateUserStatus(selectedUser.id, "Approved")}
               >
                 Activate User
               </button>
@@ -2784,413 +2346,228 @@ function AdminDashboard() {
 
             <button
               className="admin-secondary-btn"
-              onClick={() =>
-                setShowUserDetails(false)
-              }
+              onClick={() => setShowUserDetails(false)}
             >
               Close
             </button>
-
           </div>
         </Modal>
       )}
 
-      {/* =====================================================
-          FACILITY MODAL
-      ===================================================== */}
-
-      {showFacilityDetails &&
-        selectedFacility && (
-          <Modal
-            title="Facility Details"
-            onClose={() =>
-              setShowFacilityDetails(false)
-            }
-          >
-            <div className="facility-modal-heading">
-
-              <div className="facility-main-icon large">
-                🏥
-              </div>
-
-              <div>
-                <h3>
-                  {selectedFacility.name}
-                </h3>
-
-                <p>
-                  {selectedFacility.type}
-                </p>
-              </div>
-
-              <StatusBadge
-                status={
-                  selectedFacility.status
-                }
-              />
-
+      {/* FACILITY DETAILS MODAL */}
+      {showFacilityDetails && selectedFacility && (
+        <Modal
+          title="Facility Details"
+          onClose={() => setShowFacilityDetails(false)}
+        >
+          <div className="facility-modal-heading">
+            <div className="facility-main-icon large">🏥</div>
+            <div>
+              <h3>{selectedFacility.name}</h3>
+              <p>{selectedFacility.type}</p>
             </div>
+            <StatusBadge status={selectedFacility.status} />
+          </div>
 
-            <div className="modal-info-grid">
+          <div className="modal-info-grid">
+            <InfoItem label="Location" value={selectedFacility.location} />
+            <InfoItem label="Contact" value={selectedFacility.contact} />
+            <InfoItem label="Doctors" value={String(selectedFacility.doctors)} />
+            <InfoItem label="Health Workers" value={String(selectedFacility.workers)} />
+            <InfoItem label="Patients" value={String(selectedFacility.patients)} />
+            <InfoItem label="Services" value={selectedFacility.services} />
+          </div>
 
-              <InfoItem
-                label="Location"
-                value={
-                  selectedFacility.location
-                }
-              />
-
-              <InfoItem
-                label="Contact"
-                value={
-                  selectedFacility.contact
-                }
-              />
-
-              <InfoItem
-                label="Doctors"
-                value={String(
-                  selectedFacility.doctors
-                )}
-              />
-
-              <InfoItem
-                label="Health Workers"
-                value={String(
-                  selectedFacility.workers
-                )}
-              />
-
-              <InfoItem
-                label="Patients"
-                value={String(
-                  selectedFacility.patients
-                )}
-              />
-
-              <InfoItem
-                label="Services"
-                value={
-                  selectedFacility.services
-                }
-              />
-
-            </div>
-
-            <div className="modal-actions">
-
-              {selectedFacility.status ===
-              "Active" ? (
-                <button
-                  className="admin-warning-btn"
-                  onClick={() => {
-                    updateFacilityStatus(
-                      selectedFacility.id,
-                      "Under Review"
-                    );
-
-                    setShowFacilityDetails(
-                      false
-                    );
-                  }}
-                >
-                  Put Under Review
-                </button>
-              ) : (
-                <button
-                  className="admin-success-btn"
-                  onClick={() => {
-                    updateFacilityStatus(
-                      selectedFacility.id,
-                      "Active"
-                    );
-
-                    setShowFacilityDetails(
-                      false
-                    );
-                  }}
-                >
-                  ✓ Activate Facility
-                </button>
-              )}
-
+          <div className="modal-actions">
+            {selectedFacility.status === "Active" ? (
               <button
-                className="admin-secondary-btn"
-                onClick={() =>
-                  setShowFacilityDetails(
-                    false
-                  )
-                }
+                className="admin-warning-btn"
+                onClick={() => {
+                  updateFacilityStatus(selectedFacility.id, "Under Review");
+                  setShowFacilityDetails(false);
+                }}
               >
-                Close
+                Put Under Review
               </button>
-
-            </div>
-          </Modal>
-        )}
-
-      {/* =====================================================
-          REFERRAL MODAL
-      ===================================================== */}
-
-      {showReferralDetails &&
-        selectedReferral && (
-          <Modal
-            title="Referral Details"
-            onClose={() =>
-              setShowReferralDetails(
-                false
-              )
-            }
-          >
-            <div className="modal-patient">
-
-              <div className="admin-avatar large">
-                {selectedReferral.patient.charAt(
-                  0
-                )}
-              </div>
-
-              <div>
-                <h3>
-                  {selectedReferral.patient}
-                </h3>
-
-                <p>
-                  Patient Referral
-                </p>
-              </div>
-
-              <StatusBadge
-                status={
-                  selectedReferral.status
-                }
-              />
-
-            </div>
-
-            <div className="modal-info-grid">
-
-              <InfoItem
-                label="From"
-                value={
-                  selectedReferral.from
-                }
-              />
-
-              <InfoItem
-                label="Referred To"
-                value={
-                  selectedReferral.to
-                }
-              />
-
-              <InfoItem
-                label="Reason"
-                value={
-                  selectedReferral.reason
-                }
-              />
-
-              <InfoItem
-                label="Date"
-                value={
-                  selectedReferral.date
-                }
-              />
-
-            </div>
-
-            <div className="modal-actions">
-
-              {selectedReferral.status ===
-                "Pending" && (
-                <button
-                  className="admin-primary-btn"
-                  onClick={() => {
-                    updateReferralStatus(
-                      selectedReferral.id,
-                      "In Progress"
-                    );
-
-                    setShowReferralDetails(
-                      false
-                    );
-                  }}
-                >
-                  Start Referral
-                </button>
-              )}
-
-              {selectedReferral.status ===
-                "In Progress" && (
-                <button
-                  className="admin-success-btn"
-                  onClick={() => {
-                    updateReferralStatus(
-                      selectedReferral.id,
-                      "Completed"
-                    );
-
-                    setShowReferralDetails(
-                      false
-                    );
-                  }}
-                >
-                  ✓ Mark Completed
-                </button>
-              )}
-
+            ) : (
               <button
-                className="admin-secondary-btn"
-                onClick={() =>
-                  setShowReferralDetails(
-                    false
-                  )
-                }
+                className="admin-success-btn"
+                onClick={() => {
+                  updateFacilityStatus(selectedFacility.id, "Active");
+                  setShowFacilityDetails(false);
+                }}
               >
-                Close
+                ✓ Activate Facility
               </button>
+            )}
 
+            <button
+              className="admin-secondary-btn"
+              onClick={() => setShowFacilityDetails(false)}
+            >
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* REFERRAL DETAILS MODAL */}
+      {showReferralDetails && selectedReferral && (
+        <Modal
+          title="Referral Details"
+          onClose={() => setShowReferralDetails(false)}
+        >
+          <div className="modal-patient">
+            <div className="admin-avatar large">
+              {selectedReferral.patient.charAt(0)}
             </div>
-          </Modal>
-        )}
+            <div>
+              <h3>{selectedReferral.patient}</h3>
+              <p>Patient Referral</p>
+            </div>
+            <StatusBadge status={selectedReferral.status} />
+          </div>
 
-      {/* =====================================================
-          TOAST
-      ===================================================== */}
+          <div className="modal-info-grid">
+            <InfoItem label="From" value={selectedReferral.from} />
+            <InfoItem label="Referred To" value={selectedReferral.to} />
+            <InfoItem label="Reason" value={selectedReferral.reason} />
+            <InfoItem label="Date" value={selectedReferral.date} />
+          </div>
 
+          <div className="modal-actions">
+            {selectedReferral.status === "Pending" && (
+              <button
+                className="admin-primary-btn"
+                onClick={() => {
+                  updateReferralStatus(selectedReferral.id, "In Progress");
+                  setShowReferralDetails(false);
+                }}
+              >
+                Start Referral
+              </button>
+            )}
+
+            {selectedReferral.status === "In Progress" && (
+              <button
+                className="admin-success-btn"
+                onClick={() => {
+                  updateReferralStatus(selectedReferral.id, "Completed");
+                  setShowReferralDetails(false);
+                }}
+              >
+                ✓ Mark Completed
+              </button>
+            )}
+
+            <button
+              className="admin-secondary-btn"
+              onClick={() => setShowReferralDetails(false)}
+            >
+              Close
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* CHANGE PASSWORD MODAL */}
+      {showPasswordModal && (
+        <Modal
+          title="Change Admin Password"
+          onClose={() => setShowPasswordModal(false)}
+        >
+          <form onSubmit={handleSavePassword}>
+            <div className="form-group">
+              <label>New Secret Password</label>
+              <input
+                type="password"
+                required
+                placeholder="Minimum 6 characters"
+                value={newPasswordInput}
+                onChange={(e) => setNewPasswordInput(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button type="submit" className="admin-primary-btn">
+                Update Password
+              </button>
+              <button
+                type="button"
+                className="admin-secondary-btn"
+                onClick={() => setShowPasswordModal(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* TOAST */}
       {toast && (
         <div className="admin-toast">
           <span>✓</span>
           {toast}
         </div>
       )}
-
     </div>
   );
 }
 
 /* =========================================================
-   PAGE HEADER
+   SUB-COMPONENTS
 ========================================================= */
 
-function PageHeader({
-  title,
-  subtitle,
-  action,
-}) {
+function PageHeader({ title, subtitle, action }) {
   return (
     <div className="admin-page-header">
-
       <div>
         <span className="admin-page-eyebrow">
           SWASTHYASETU · ADMIN PORTAL
         </span>
-
         <h1>{title}</h1>
-
         <p>{subtitle}</p>
       </div>
-
-      {action && (
-        <div>{action}</div>
-      )}
-
+      {action && <div>{action}</div>}
     </div>
   );
 }
 
-/* =========================================================
-   STAT CARD
-========================================================= */
-
-function StatCard({
-  icon,
-  label,
-  value,
-  change,
-  urgent,
-}) {
+function StatCard({ icon, label, value, change, urgent }) {
   return (
     <div className="admin-stat-card">
-
       <div className="stat-top">
-
-        <div className="stat-icon">
-          {icon}
-        </div>
-
-        <span
-          className={
-            urgent
-              ? "stat-urgent"
-              : ""
-          }
-        >
-          {change}
-        </span>
-
+        <div className="stat-icon">{icon}</div>
+        <span className={urgent ? "stat-urgent" : ""}>{change}</span>
       </div>
-
       <strong>{value}</strong>
-
       <p>{label}</p>
-
     </div>
   );
 }
 
-/* =========================================================
-   MINI STAT
-========================================================= */
-
-function MiniStat({
-  label,
-  value,
-}) {
+function MiniStat({ label, value }) {
   return (
     <div className="admin-mini-stat">
-
       <span>{label}</span>
-
       <strong>{value}</strong>
-
     </div>
   );
 }
 
-/* =========================================================
-   APPROVAL ROW
-========================================================= */
-
-function ApprovalRow({
-  user,
-  onApprove,
-  onReject,
-  onView,
-}) {
+function ApprovalRow({ user, onApprove, onReject, onView }) {
   return (
     <div className="approval-row">
-
-      <div className="admin-avatar">
-        {user.name.charAt(0)}
-      </div>
-
+      <div className="admin-avatar">{user.name.charAt(0)}</div>
       <div className="approval-row-info">
-
         <strong>{user.name}</strong>
-
         <span>
           {user.role} · {user.facility}
         </span>
-
       </div>
-
       <StatusBadge status="Pending" />
-
       <div className="approval-row-actions">
-
         <button
           className="small-success-btn"
           onClick={onApprove}
@@ -3198,107 +2575,47 @@ function ApprovalRow({
         >
           ✓
         </button>
-
-        <button
-          className="small-danger-btn"
-          onClick={onReject}
-          title="Reject"
-        >
+        <button className="small-danger-btn" onClick={onReject} title="Reject">
           ×
         </button>
-
-        <button
-          className="small-icon-btn"
-          onClick={onView}
-          title="View"
-        >
+        <button className="small-icon-btn" onClick={onView} title="View">
           →
         </button>
-
       </div>
-
     </div>
   );
 }
 
-/* =========================================================
-   NETWORK ITEM
-========================================================= */
-
-function NetworkItem({
-  icon,
-  label,
-  value,
-  status,
-}) {
+function NetworkItem({ icon, label, value, status }) {
   return (
     <div className="network-item">
-
-      <div className="network-icon">
-        {icon}
-      </div>
-
+      <div className="network-icon">{icon}</div>
       <div>
         <span>{label}</span>
-
         <strong>{value}</strong>
-
         <small>{status}</small>
       </div>
-
     </div>
   );
 }
 
-/* =========================================================
-   REFERRAL ROW
-========================================================= */
-
-function ReferralRow({
-  referral,
-  onClick,
-}) {
+function ReferralRow({ referral, onClick }) {
   return (
-    <button
-      className="admin-referral-row-small"
-      onClick={onClick}
-    >
-      <div className="admin-avatar">
-        {referral.patient.charAt(0)}
-      </div>
-
+    <button className="admin-referral-row-small" onClick={onClick}>
+      <div className="admin-avatar">{referral.patient.charAt(0)}</div>
       <div>
-        <strong>
-          {referral.patient}
-        </strong>
-
-        <span>
-          {referral.reason}
-        </span>
+        <strong>{referral.patient}</strong>
+        <span>{referral.reason}</span>
       </div>
-
-      <StatusBadge
-        status={referral.status}
-      />
-
-      <span className="row-arrow">
-        →
-      </span>
+      <StatusBadge status={referral.status} />
+      <span className="row-arrow">→</span>
     </button>
   );
 }
 
-/* =========================================================
-   CARE GAP ROW
-========================================================= */
-
-function CareGapRow({
-  gap,
-  onResolve,
-}) {
+function CareGapRow({ gap, onResolve }) {
   return (
     <div className="care-gap-row">
-
       <div
         className={`care-gap-dot ${gap.priority
           .toLowerCase()
@@ -3306,17 +2623,11 @@ function CareGapRow({
       >
         !
       </div>
-
       <div>
         <strong>{gap.patient}</strong>
-
         <span>{gap.gap}</span>
       </div>
-
-      <StatusBadge
-        status={gap.priority}
-      />
-
+      <StatusBadge status={gap.priority} />
       {gap.status !== "Resolved" && (
         <button
           className="care-gap-complete"
@@ -3326,300 +2637,137 @@ function CareGapRow({
           ✓
         </button>
       )}
-
     </div>
   );
 }
 
-/* =========================================================
-   STATUS BADGE
-========================================================= */
-
-function StatusBadge({
-  status,
-}) {
-  const normalized = status
-    .toLowerCase()
-    .replaceAll(" ", "-");
-
+function StatusBadge({ status }) {
+  const normalized = status.toLowerCase().replaceAll(" ", "-");
   return (
-    <span
-      className={`admin-status ${normalized}`}
-    >
+    <span className={`admin-status ${normalized}`}>
       <i></i>
       {status}
     </span>
   );
 }
 
-/* =========================================================
-   INFO ITEM
-========================================================= */
-
-function InfoItem({
-  label,
-  value,
-}) {
+function InfoItem({ label, value }) {
   return (
     <div className="info-item">
-
       <span>{label}</span>
-
       <strong>{value}</strong>
-
     </div>
   );
 }
 
-/* =========================================================
-   QUALITY CARD
-========================================================= */
-
-function QualityCard({
-  label,
-  value,
-  change,
-}) {
+function QualityCard({ label, value, change }) {
   return (
     <div className="admin-quality-card">
-
       <span>{label}</span>
-
       <strong>{value}</strong>
-
       <small>{change}</small>
-
     </div>
   );
 }
 
-/* =========================================================
-   QUALITY BAR
-========================================================= */
-
-function QualityBar({
-  label,
-  value,
-}) {
+function QualityBar({ label, value }) {
   return (
     <div className="quality-bar-item">
-
       <div>
         <span>{label}</span>
-
         <strong>{value}%</strong>
       </div>
-
       <div className="quality-progress">
-        <span
-          style={{
-            width: `${value}%`,
-          }}
-        ></span>
+        <span style={{ width: `${value}%` }}></span>
       </div>
-
     </div>
   );
 }
 
-/* =========================================================
-   PERFORMANCE ROW
-========================================================= */
-
-function PerformanceRow({
-  rank,
-  name,
-  score,
-}) {
+function PerformanceRow({ rank, name, score }) {
   return (
     <div className="performance-row">
-
       <strong>{rank}</strong>
-
       <span>{name}</span>
-
       <b>{score}</b>
-
     </div>
   );
 }
 
-/* =========================================================
-   ANALYTICS CARD
-========================================================= */
-
-function AnalyticsCard({
-  label,
-  value,
-  text,
-}) {
+function AnalyticsCard({ label, value, text }) {
   return (
     <div className="admin-analytics-card">
-
       <span>{label}</span>
-
       <strong>{value}</strong>
-
       <small>{text}</small>
-
     </div>
   );
 }
 
-/* =========================================================
-   ANALYTICS ROW
-========================================================= */
-
-function AnalyticsRow({
-  label,
-  value,
-  percentage,
-}) {
+function AnalyticsRow({ label, value, percentage }) {
   return (
     <div className="analytics-row">
-
       <div>
         <strong>{label}</strong>
-
         <span>{value}</span>
       </div>
-
       <div className="analytics-row-bar">
-        <span
-          style={{
-            width: percentage,
-          }}
-        ></span>
+        <span style={{ width: percentage }}></span>
       </div>
-
       <b>{percentage}</b>
-
     </div>
   );
 }
 
-/* =========================================================
-   ACCESS ITEM
-========================================================= */
-
-function AccessItem({
-  label,
-  enabled,
-}) {
+function AccessItem({ label, enabled }) {
   return (
     <div className="access-item">
-
-      <span>
-        {enabled ? "✓" : "×"}
-      </span>
-
+      <span>{enabled ? "✓" : "×"}</span>
       <strong>{label}</strong>
-
-      <small>
-        {enabled
-          ? "Enabled"
-          : "Disabled"}
-      </small>
-
+      <small>{enabled ? "Enabled" : "Disabled"}</small>
     </div>
   );
 }
 
-/* =========================================================
-   FORM FIELD
-========================================================= */
-
-function FormField({
-  label,
-  type = "text",
-  value,
-  onChange,
-}) {
+function FormField({ label, type = "text", value, onChange }) {
   return (
     <div className="form-group">
       <label>{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-      />
+      <input type={type} value={value} onChange={onChange} />
     </div>
   );
 }
 
-/* =========================================================
-   SETTINGS ROW
-========================================================= */
-
-function SettingRow({
-  title,
-  text,
-  defaultChecked,
-}) {
-  const [checked, setChecked] = useState(
-    defaultChecked
-  );
+function SettingRow({ title, text, defaultChecked }) {
+  const [checked, setChecked] = useState(defaultChecked);
 
   return (
     <div className="setting-row">
-
       <div>
         <strong>{title}</strong>
-
         <span>{text}</span>
       </div>
-
       <button
-        className={`toggle-switch ${
-          checked ? "on" : ""
-        }`}
-        onClick={() =>
-          setChecked(!checked)
-        }
+        type="button"
+        className={`toggle-switch ${checked ? "on" : ""}`}
+        onClick={() => setChecked(!checked)}
         aria-label={title}
       >
         <span></span>
       </button>
-
     </div>
   );
 }
 
-/* =========================================================
-   MODAL
-========================================================= */
-
-function Modal({
-  title,
-  children,
-  onClose,
-}) {
+function Modal({ title, children, onClose }) {
   return (
-    <div
-      className="admin-modal-overlay"
-      onClick={onClose}
-    >
-      <div
-        className="admin-modal"
-        onClick={(e) =>
-          e.stopPropagation()
-        }
-      >
-
+    <div className="admin-modal-overlay" onClick={onClose}>
+      <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-
           <h2>{title}</h2>
-
-          <button onClick={onClose}>
-            ×
-          </button>
-
+          <button onClick={onClose}>×</button>
         </div>
-
-        <div className="modal-body">
-          {children}
-        </div>
-
+        <div className="modal-body">{children}</div>
       </div>
     </div>
   );

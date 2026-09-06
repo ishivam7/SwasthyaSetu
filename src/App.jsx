@@ -1,64 +1,99 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import Landing from "./pages/Landing";
-import RoleSelection from "./pages/Roleselection";
-import Login from "./pages/Login";
+// Pages
+import Landing from "./pages/Landing.jsx";
+import RoleSelection from "./pages/Roleselection.jsx";
+import Login from "./pages/Login.jsx";
+import Registration from "./pages/Registration.jsx";
+
+// Dashboards
 import PatientDashboard from "./pages/patient/PatientDashboard.jsx";
 import DoctorDashboard from "./pages/doctor/DoctorDashboard.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import WorkerDashboard from "./pages/worker/WorkerDashboard.jsx";
-import Registration from "./pages/Registration.jsx";
+
+// Security & Offline Engine
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import { initOfflineSyncListener } from "./api/syncQueue.js";
+
 function App() {
+  // Read authenticated session or role from local state/storage
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem("swasthya_user");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const currentRole = currentUser?.role || localStorage.getItem("swasthya_role");
+
+  // Mount background offline sync listener (flushes Dexie queue on reconnect)
+  useEffect(() => {
+    const cleanup = initOfflineSyncListener(
+      (item) => console.log("[Sync Success] Flushed queue item:", item.queueId),
+      (item, conflict) => console.warn("[Sync Conflict] Manual review needed:", item.queueId, conflict)
+    );
+    return cleanup;
+  }, []);
+
   return (
     <BrowserRouter>
-
       <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Landing />} />
+        <Route path="/roles" element={<RoleSelection />} />
+        <Route path="/select-role" element={<Navigate to="/roles" replace />} />
+        <Route path="/login" element={<Login onLogin={(user) => setCurrentUser(user)} />} />
+        <Route path="/registration" element={<Registration />} />
 
-        {/* Landing Page */}
-        <Route
-          path="/"
-          element={<Landing />}
-        />
-
-        {/* Role Selection */}
-        <Route
-          path="/roles"
-          element={<RoleSelection />}
-        />
-
-        {/* Login */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        {/* Patient Dashboard */}
+        {/* Protected Patient Dashboard */}
         <Route
           path="/patient/dashboard"
-          element={<PatientDashboard />}
+          element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={["patient"]}>
+              <PatientDashboard />
+            </ProtectedRoute>
+          }
         />
- <Route
+
+        {/* Protected Doctor Dashboard */}
+        <Route
           path="/doctor-dashboard"
-          element={<DoctorDashboard />}
+          element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={["doctor"]}>
+              <DoctorDashboard />
+            </ProtectedRoute>
+          }
         />
+
+        {/* Protected Worker Dashboard (ASHA / ANM) */}
+        <Route
+          path="/worker-dashboard"
+          element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={["worker"]}>
+              <WorkerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected Admin Dashboard */}
         <Route
           path="/admin-dashboard"
-          element={<AdminDashboard />}
+          element={
+            <ProtectedRoute currentRole={currentRole} allowedRoles={["admin"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
         />
-        <Route
-  path="/worker-dashboard"
-  element={<WorkerDashboard />}
-/>
-    <Route
-  path="/registration"
-  element={<Registration />}
-/>
-      </Routes>
 
+        {/* Catch-all fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </BrowserRouter>
   );
 }
 
-
 export default App;
-
