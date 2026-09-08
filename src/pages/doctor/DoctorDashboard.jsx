@@ -663,7 +663,7 @@ function DoctorDashboard() {
   const renderDashboard = () => (
     <>
       <PageHeader
-        title={`Good Morning, ${doctorProfile.name}`}
+        title={`Welcome, ${doctorProfile.name}`}
         subtitle="Here's what's happening with your patients and consultations today."
         action={
           <button

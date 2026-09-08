@@ -1244,7 +1244,7 @@ function PatientDashboard() {
               <section className="welcome-banner">
                 <div className="welcome-content">
                   <span className="welcome-eyebrow">YOUR HEALTHCARE JOURNEY</span>
-                  <h2>Good morning, {profile.name || "Patient"}.</h2>
+                  <h2>Welcome, {profile.name || "Patient"}.</h2>
                   <p>
                     Stay connected with your healthcare journey and access the care you need.
                   </p>

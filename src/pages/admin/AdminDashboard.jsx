@@ -722,7 +722,7 @@ function AdminDashboard() {
   const renderDashboard = () => (
     <>
       <PageHeader
-        title={`Good Morning, ${adminProfile.name}`}
+        title={`Welcome, ${adminProfile.name}`}
         subtitle="Here's what's happening across the SwasthyaSetu healthcare network."
         action={
           <button

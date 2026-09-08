@@ -810,7 +810,7 @@ function WorkerDashboard() {
   const renderDashboard = () => (
     <>
       <PageHeader
-        title={`Good Morning, ${workerProfile.name.replace(/\s*\(.*?\)/g, "").trim()}`}
+        title={`Welcome, ${workerProfile.name.replace(/\s*\(.*?\)/g, "").trim()}`}
         subtitle="Here's what's happening with your assigned patients and facility today."
         action={
           <button

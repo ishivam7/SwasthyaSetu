@@ -162,17 +162,8 @@ function Registration() {
       return "Full name must contain at least 3 characters.";
     }
 
-    if (!form.email.trim()) {
-      return "Please enter your email address.";
-    }
-
-    if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-        form.email.trim()
-      )
-    ) {
-      return "Please enter a valid email address.";
-    }
+   
+   
 
     if (!form.phone.trim()) {
       return "Please enter your mobile number.";
