@@ -1,4 +1,3 @@
-// models/Appointment.js
 const mongoose = require("mongoose");
 
 const appointmentSchema = new mongoose.Schema(
@@ -8,43 +7,46 @@ const appointmentSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    doctor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
     facility: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Facility",
-      required: true,
+      type: String,
+      required: [true, "Please specify the healthcare facility"],
+      trim: true,
     },
-    appointmentDate: {
-      type: Date,
-      required: [true, "Please add an appointment date"],
+    doctor: {
+      type: String,
+      default: "General Physician",
+      trim: true,
+    },
+    type: {
+      type: String,
+      required: true,
+      enum: [
+        "General Consultation",
+        "Specialist Consultation",
+        "Health Check-up",
+        "Follow-up Consultation",
+      ],
+      default: "General Consultation",
+    },
+    date: {
+      type: String,
+      required: [true, "Please provide an appointment date"],
+    },
+    time: {
+      type: String,
+      required: [true, "Please provide an appointment time"],
+    },
+    location: {
+      type: String,
+      default: "Choubeypur",
     },
     status: {
       type: String,
-      enum: ["Pending", "Confirmed", "Completed", "Cancelled"],
-      default: "Pending",
+      enum: ["Upcoming", "Confirmed", "In Progress", "Completed", "Cancelled"],
+      default: "Confirmed",
     },
-    symptoms: {
-      type: String,
-      required: [true, "Please describe symptoms"],
-    },
-    diagnosis: {
-      type: String,
-      default: "",
-    },
-    prescription: [
-      {
-        medicineName: String,
-        dosage: String,
-        duration: String,
-      },
-    ],
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Appointment", appointmentSchema);

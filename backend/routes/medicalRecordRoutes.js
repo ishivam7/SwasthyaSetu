@@ -2,8 +2,8 @@
 const express = require("express");
 const router = express.Router();
 const {
-  createMedicalRecord,
   getMedicalRecords,
+  createMedicalRecord,
 } = require("../controllers/medicalRecordController");
 const { protect } = require("../middleware/authMiddleware");
 const { authorize } = require("../middleware/roleMiddleware");

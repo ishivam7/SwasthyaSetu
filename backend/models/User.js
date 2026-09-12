@@ -4,81 +4,52 @@ const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema(
   {
-    name: { 
-      type: String, 
-      required: [true, "Please add a name"], 
+    name: {
+      type: String,
+      required: [true, "Please add a name"],
       trim: true,
-      default: "SwasthyaSetu User" 
     },
-    email: { 
-      type: String, 
-      required: [true, "Please add an email"], 
-      unique: true, 
-      lowercase: true,
-      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please add a valid email"]
+    email: {
+      type: String,
+      unique: true,
+      sparse: true, // Allows multiple null/undefined values for users without email
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        "Please add a valid email",
+      ],
     },
-    phone: { 
-      type: String, 
-      required: [true, "Please add a phone number"] 
+    phone: {
+      type: String,
+      required: [true, "Please add a phone number"],
+      unique: true,
+      trim: true,
     },
-    password: { 
-      type: String, 
-      required: [true, "Please add a password"], 
-      minlength: 6, 
-      select: false 
+    password: {
+      type: String,
+      required: [true, "Please add a password"],
+      minlength: 6,
+      select: false,
     },
-    role: { 
-      type: String, 
-      required: true, 
-      enum: ["admin", "doctor", "worker", "patient"], 
-      default: "patient" 
+    role: {
+      type: String,
+      enum: ["patient", "doctor", "worker", "admin"],
+      default: "patient",
     },
-    status: { 
-      type: String, 
-      enum: ["Active", "Pending", "Suspended"], 
-      default: "Pending" 
-    },
-    image: { 
-      type: String, 
-      default: "" 
-    },
-
-    // Admin Specific Fields
-    department: { type: String },
-    organization: { type: String },
-    accessLevel: { type: String },
-
-    // Doctor Specific Fields
-    specialization: { type: String },
-    qualification: { type: String },
-    experience: { type: String },
-    facility: { type: String },
-    consultationHours: { type: String },
-    registration: { type: String },
-    bio: { type: String, default: "" },
-
-    // Health Worker Specific Fields
-    employeeId: { type: String },
-
-    // Patient Specific Fields
-    age: { type: Number },
-    location: { type: String },
-    emergencyContact: { type: String },
   },
-  { 
-    timestamps: true 
+  {
+    timestamps: true,
+    discriminatorKey: "role",
   }
 );
 
-// Hash password before saving
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password")) {
+    next();
+  }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
-// Compare password method
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };

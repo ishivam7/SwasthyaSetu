@@ -1,127 +1,111 @@
+// backend/controllers/authController.js
 const User = require("../models/User");
-const Admin = require("../models/Admin");
+const Patient = require("../models/Patient");
 const Doctor = require("../models/Doctor");
 const HealthWorker = require("../models/HealthWorker");
-const Patient = require("../models/Patient");
-const generateToken = require("../utils/generateToken");
+const Admin = require("../models/Admin");
+const jwt = require("jsonwebtoken");
+const { jwtSecret, jwtExpire } = require("../config/env");
 
-const registerUser = async (req, res, next) => {
+const generateToken = (id) => {
+  return jwt.sign({ id }, jwtSecret, { expiresIn: jwtExpire });
+};
+
+// @desc    Register new user
+// @route   POST /api/auth/register
+const registerUser = async (req, res) => {
   try {
-    const {
-      name, email, phone, password, role, image,
-      department, organization, accessLevel,
-      specialization, qualification, experience, facility, consultationHours, registration, bio,
-      employeeId,
-      age, location, emergencyContact,
-    } = req.body;
+    const { name, email, password, phone, role, profileData } = req.body;
 
     const userExists = await User.findOne({ email });
     if (userExists) {
-      res.status(400);
-      throw new Error("User already exists with this email");
+      return res.status(400).json({ success: false, message: "User already exists" });
     }
 
-    const user = await User.create({
-      name: name || "SwasthyaSetu User",
-      email,
-      phone,
-      password,
-      role: role || "patient",
-      image: image || "",
-    });
+    // Determine verification status: doctors and workers start unverified (false)
+    const isVerified = role === "patient" || role === "admin" ? true : false;
 
-    if (!user) {
-      res.status(400);
-      throw new Error("Invalid user data");
-    }
+    const user = await User.create({ name, email, password, phone, role, isVerified });
 
-    if (role === "admin") {
-      await Admin.create({ userId: user._id, department, organization, accessLevel });
-    } else if (role === "doctor") {
-      await Doctor.create({ userId: user._id, specialization, qualification, experience, facility, consultationHours, registration, bio });
-    } else if (role === "worker") {
-      await HealthWorker.create({ userId: user._id, facility, department, employeeId, experience });
-    } else {
-      await Patient.create({ userId: user._id, age, location, emergencyContact });
+    // Create corresponding role-based profile using correct schema field references (userId)
+    if (role === "patient" && profileData) {
+      await Patient.create({ userId: user._id, ...profileData });
+    } else if (role === "doctor" && profileData) {
+      await Doctor.create({ userId: user._id, ...profileData });
+    } else if (role === "worker" && profileData) {
+      await HealthWorker.create({ userId: user._id, ...profileData });
+    } else if (role === "admin" && profileData) {
+      await Admin.create({ userId: user._id, ...profileData });
     }
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
-      data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        token: generateToken(user._id, user.role),
-      },
+      token: generateToken(user._id),
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, isVerified: user.isVerified },
     });
   } catch (error) {
-    next(error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const loginUser = async (req, res, next) => {
+// @desc    Authenticate user & get token (supports email or phone identifier)
+// @route   POST /api/auth/login
+const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, password, role } = req.body;
+    console.log("[Login Attempt] Payload received:", { identifier, role });
 
-    if (!email || !password) {
-      res.status(400);
-      throw new Error("Please add email and password");
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, message: "Please provide credentials" });
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    const cleanId = identifier.trim().toLowerCase();
 
-    if (user && (await user.matchPassword(password))) {
-      res.json({
-        success: true,
-        message: "Login successful",
-        data: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status,
-          image: user.image,
-          token: generateToken(user._id, user.role),
-        },
-      });
-    } else {
-      res.status(401);
-      throw new Error("Invalid email or password");
-    }
-  } catch (error) {
-    next(error);
-  }
-};
+    // Search using $or to safely check both email and phone fields in MongoDB
+    const user = await User.findOne({
+      $or: [
+        { email: cleanId },
+        { phone: identifier.trim() }
+      ]
+    }).select("+password");
 
-const getMe = async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id);
-    let profileDetails = null;
-
-    if (user.role === "admin") {
-      profileDetails = await Admin.findOne({ userId: user._id });
-    } else if (user.role === "doctor") {
-      profileDetails = await Doctor.findOne({ userId: user._id });
-    } else if (user.role === "worker") {
-      profileDetails = await HealthWorker.findOne({ userId: user._id });
-    } else if (user.role === "patient") {
-      profileDetails = await Patient.findOne({ userId: user._id });
+    if (!user) {
+      console.log("[Login Error] User not found in database for identifier:", cleanId);
+      return res.status(401).json({ success: false, message: "Incorrect username or password" });
     }
 
-    res.status(200).json({
+    const isMatch = await user.matchPassword(password.trim());
+    console.log("[Login Check] Password matches:", isMatch);
+
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Incorrect username or password" });
+    }
+
+    // Optional role check if role is passed
+    if (role && user.role !== role && !(role === "worker" && user.role === "health-worker")) {
+      console.log(`[Login Error] Role mismatch. User role: ${user.role}, Requested: ${role}`);
+      return res.status(401).json({ success: false, message: "Incorrect username or password" });
+    }
+
+    res.json({
       success: true,
-      data: { user, profileDetails },
+      token: generateToken(user._id),
+      user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (error) {
-    next(error);
+    console.error("[Login Server Exception]:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+const getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    res.json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-module.exports = {
-  registerUser,
-  loginUser,
-  getMe,
-};
+module.exports = { registerUser, loginUser, getMe };

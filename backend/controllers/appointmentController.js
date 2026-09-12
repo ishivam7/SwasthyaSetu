@@ -40,8 +40,21 @@ const updateAppointment = async (req, res, next) => {
   }
 };
 
+const cancelAppointment = async (req, res, next) => {
+  try {
+    await appointmentService.updateAppointment(req.params.id, { status: "Cancelled" });
+    res.status(200).json({
+      success: true,
+      message: "Appointment cancelled successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createAppointment,
   getAppointments,
   updateAppointment,
+  cancelAppointment,
 };

@@ -20,7 +20,8 @@
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.13",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.18.3"
+    "react-router-dom": "^7.18.3",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -1,9 +1,7 @@
+// controllers/facilityController.js
 const Facility = require("../models/Facility");
 const { recommendFacilities } = require("../services/facilityRecommendation");
 
-// @desc    Get all healthcare facilities
-// @route   GET /api/facilities
-// @access  Public
 const getFacilities = async (req, res, next) => {
   try {
     const facilities = await Facility.find({});
@@ -17,9 +15,6 @@ const getFacilities = async (req, res, next) => {
   }
 };
 
-// @desc    Get smart facility recommendations based on location
-// @route   GET /api/facilities/recommend
-// @access  Public
 const getRecommendedFacilities = async (req, res, next) => {
   try {
     const { lng, lat, service } = req.query;
@@ -41,9 +36,6 @@ const getRecommendedFacilities = async (req, res, next) => {
   }
 };
 
-// @desc    Create a new facility
-// @route   POST /api/facilities
-// @access  Private/Admin
 const createFacility = async (req, res, next) => {
   try {
     const facility = await Facility.create(req.body);

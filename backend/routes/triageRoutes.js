@@ -3,13 +3,18 @@ const express = require("express");
 const router = express.Router();
 const {
   createTriage,
-  getTriage,
+  getTriages,
+  getTriageById,
 } = require("../controllers/triageController");
+const { triageValidation } = require("../validators/triageValidator");
+const { validate } = require("../middleware/validationMiddleware");
 const { protect } = require("../middleware/authMiddleware");
-const { authorize } = require("../middleware/roleMiddleware");
 
 router.route("/")
-  .get(protect, getTriage)
-  .post(protect, authorize("worker", "doctor", "admin"), createTriage);
+  .get(protect, getTriages)
+  .post(protect, validate(triageValidation), createTriage);
+
+router.route("/:id")
+  .get(protect, getTriageById);
 
 module.exports = router;

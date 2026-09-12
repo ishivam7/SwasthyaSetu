@@ -1,15 +1,10 @@
-// routes/authRoutes.js
 const express = require("express");
 const router = express.Router();
-const {
-  registerUser,
-  loginUser,
-  getMe,
-} = require("../controllers/authController");
-const { protect } = require("../middleware/authMiddleware");
+const { loginUser, registerUser } = require("../controllers/authController");
+const { loginValidation, registerValidation } = require("../validators/authValidator");
 
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.get("/me", protect, getMe);
+// Pass the array directly as middleware — Express handles execution automatically
+router.post("/login", loginValidation, loginUser);
+router.post("/register", registerValidation, registerUser);
 
 module.exports = router;
