@@ -28,14 +28,16 @@ const appointmentSchema = new mongoose.Schema(
       ],
       default: "General Consultation",
     },
-    date: {
-      type: String,
-      required: [true, "Please provide an appointment date"],
-    },
-    time: {
-      type: String,
-      required: [true, "Please provide an appointment time"],
-    },
+  date: {
+    type: String,
+    required: [true, "Please provide an appointment date"],
+    default: () => new Date().toISOString().split("T")[0],
+  },
+  time: {
+    type: String,
+    required: [true, "Please provide an appointment time"],
+    default: "10:30 AM",
+  },
     location: {
       type: String,
       default: "Choubeypur",

@@ -203,20 +203,20 @@ const seedDatabase = async () => {
     }
 
     // 6. Create 10 Appointments
-    for (let i = 0; i < 10; i++) {
-      await Appointment.create({
-        patient: patients[i].user._id,
-        doctor: doctors[i % doctors.length].user._id,
-        facility: facilities[i % facilities.length]._id,
-        appointmentDate: new Date(Date.now() + i * 86400000), // Incremental dates
-        status: i % 2 === 0 ? "Confirmed" : "Pending",
-        symptoms: "Mild fever, body ache, and fatigue.",
-        diagnosis: i % 2 === 0 ? "Viral Upper Respiratory Infection" : "",
-        prescription: [
-          { medicineName: "Paracetamol 500mg", dosage: "1 tablet 3 times a day", duration: "5 days" }
-        ],
-      });
-    }
+   for (let i = 0; i < 10; i++) {
+  const targetDate = new Date(Date.now() + i * 86400000);
+  
+  await Appointment.create({
+    patient: patients[i].user._id,
+    facility: "Community Health Centre Choubeypur", // Must be a String per your schema
+    doctor: "General Physician",                     // String per schema
+    type: "General Consultation",                  // Must match enum values
+    date: targetDate.toISOString().split("T")[0],    // Matches schema String
+    time: "10:30 AM",                                // Matches schema String
+    location: "Choubeypur",
+    status: i % 2 === 0 ? "Confirmed" : "Upcoming",  // Must match enum values
+  });
+}
 
     // 7. Create 10 Availabilities
     const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
